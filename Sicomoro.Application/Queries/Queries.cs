@@ -1,6 +1,7 @@
 using MediatR;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.DTOs;
+using Sicomoro.Application.Interfaces;
 using Sicomoro.Domain.Enums;
 using Sicomoro.Domain.Interfaces;
 
@@ -22,12 +23,13 @@ public sealed record ListarCajaMovimientosQuery(DateTime Desde, DateTime Hasta) 
 public sealed record ListarNotificacionesQuery(bool SoloNoLeidas = false) : IRequest<List<NotificacionDto>>;
 public sealed record ListarAuditoriaQuery(int Take = 100) : IRequest<List<AuditoriaDto>>;
 public sealed record ListarUsuariosQuery : IRequest<List<UsuarioDto>>;
+public sealed record ObtenerMiPerfilQuery : IRequest<UsuarioDto>;
 public sealed record ReporteVentasQuery(DateTime Desde, DateTime Hasta) : IRequest<ReporteVentasDto>;
 public sealed record ReporteInventarioBajoQuery : IRequest<List<InventarioDto>>;
 public sealed record ReporteClientesDeudoresQuery : IRequest<List<ClienteDto>>;
 public sealed record ReporteCajaQuery(DateTime Desde, DateTime Hasta) : IRequest<ReporteCajaDto>;
 
-public sealed class QueryHandlers(IUnitOfWork uow) :
+public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUser) :
     IRequestHandler<ListarClientesQuery, List<ClienteDto>>,
     IRequestHandler<ObtenerClienteQuery, ClienteDto>,
     IRequestHandler<ListarProveedoresQuery, List<ProveedorDto>>,
@@ -44,6 +46,7 @@ public sealed class QueryHandlers(IUnitOfWork uow) :
     IRequestHandler<ListarNotificacionesQuery, List<NotificacionDto>>,
     IRequestHandler<ListarAuditoriaQuery, List<AuditoriaDto>>,
     IRequestHandler<ListarUsuariosQuery, List<UsuarioDto>>,
+    IRequestHandler<ObtenerMiPerfilQuery, UsuarioDto>,
     IRequestHandler<ReporteVentasQuery, ReporteVentasDto>,
     IRequestHandler<ReporteInventarioBajoQuery, List<InventarioDto>>,
     IRequestHandler<ReporteClientesDeudoresQuery, List<ClienteDto>>,
@@ -96,7 +99,13 @@ public sealed class QueryHandlers(IUnitOfWork uow) :
     public async Task<List<CajaMovimientoDto>> Handle(ListarCajaMovimientosQuery r, CancellationToken ct) => (await uow.Caja.ListarPorRangoAsync(r.Desde, r.Hasta, ct)).Select(x => x.ToDto()).ToList();
     public async Task<List<NotificacionDto>> Handle(ListarNotificacionesQuery r, CancellationToken ct) => (r.SoloNoLeidas ? await uow.Notificaciones.ListarNoLeidasAsync(ct) : await uow.Notificaciones.ListarAsync(ct)).Select(x => x.ToDto()).ToList();
     public async Task<List<AuditoriaDto>> Handle(ListarAuditoriaQuery r, CancellationToken ct) => (await uow.Auditoria.ListarRecienteAsync(Math.Clamp(r.Take, 1, 500), ct)).Select(x => x.ToDto()).ToList();
-    public async Task<List<UsuarioDto>> Handle(ListarUsuariosQuery r, CancellationToken ct) => (await uow.Usuarios.ListarAsync(ct)).Select(x => new UsuarioDto(x.Id, x.Nombre, x.Email, x.Rol, x.Estado)).OrderBy(x => x.Nombre).ToList();
+    public async Task<List<UsuarioDto>> Handle(ListarUsuariosQuery r, CancellationToken ct) => (await uow.Usuarios.ListarAsync(ct)).Select(x => x.ToDto()).OrderBy(x => x.Nombre).ToList();
+    public async Task<UsuarioDto> Handle(ObtenerMiPerfilQuery r, CancellationToken ct)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("Sesion invalida.");
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(userId, ct) ?? throw new KeyNotFoundException("Usuario no encontrado.");
+        return usuario.ToDto();
+    }
 
     public async Task<ReporteVentasDto> Handle(ReporteVentasQuery r, CancellationToken ct)
     {

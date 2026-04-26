@@ -10,8 +10,12 @@ using Sicomoro.Domain.Interfaces;
 namespace Sicomoro.Application.Commands;
 
 public sealed record LoginCommand(string Email, string Password) : IRequest<AuthResponse>;
-public sealed record RegisterCommand(string Nombre, string Email, string Password, RolSistema Rol) : IRequest<AuthResponse>;
+public sealed record RegisterCommand(string Nombre, string Email, string Password, RolSistema Rol, string? ClaveCreacion = null, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<AuthResponse>;
+public sealed record CrearUsuarioCommand(string Nombre, string Email, string Password, RolSistema Rol, string ClaveCreacion, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<UsuarioDto>;
 public sealed record EliminarUsuarioPorEmailCommand(string Email) : IRequest<bool>;
+public sealed record EliminarUsuarioCommand(Guid Id) : IRequest<bool>;
+public sealed record ActualizarMiPerfilCommand(string Nombre, string Email, string? CiNit, string? Telefono, string? Direccion, string? Cargo, string? Notas) : IRequest<UsuarioDto>;
+public sealed record CambiarMiPasswordCommand(string PasswordActual, string NuevaPassword) : IRequest<bool>;
 
 public sealed record CrearClienteCommand(string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas) : IRequest<ClienteDto>;
 public sealed record ActualizarClienteCommand(Guid Id, string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas, EstadoRegistro Estado) : IRequest<ClienteDto>;
@@ -34,30 +38,100 @@ public sealed record RegistrarCajaMovimientoCommand(TipoCajaMovimiento Tipo, dec
 public sealed record GenerarDocumentoVentaCommand(Guid VentaId, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<DocumentoDto>;
 public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<bool>;
 
-public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow) :
+public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICurrentUserService currentUser, IPasswordHasher hasher, IUserCreationKeyValidator creationKeyValidator) :
     IRequestHandler<LoginCommand, AuthResponse>,
     IRequestHandler<RegisterCommand, AuthResponse>,
-    IRequestHandler<EliminarUsuarioPorEmailCommand, bool>
+    IRequestHandler<CrearUsuarioCommand, UsuarioDto>,
+    IRequestHandler<EliminarUsuarioPorEmailCommand, bool>,
+    IRequestHandler<EliminarUsuarioCommand, bool>,
+    IRequestHandler<ActualizarMiPerfilCommand, UsuarioDto>,
+    IRequestHandler<CambiarMiPasswordCommand, bool>
 {
     public Task<AuthResponse> Handle(LoginCommand request, CancellationToken cancellationToken) =>
         authService.LoginAsync(request.Email, request.Password, cancellationToken);
 
-    public Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken) =>
-        authService.RegisterAsync(request.Nombre, request.Email, request.Password, request.Rol, cancellationToken);
+    public Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
+    {
+        if (!creationKeyValidator.IsValid(request.ClaveCreacion))
+            throw new UnauthorizedAccessException("Clave de creacion de usuario invalida.");
+
+        return authService.RegisterAsync(request.Nombre, request.Email, request.Password, request.Rol, request.CiNit, request.Telefono, request.Direccion, request.Cargo, request.Notas, cancellationToken);
+    }
+
+    public async Task<UsuarioDto> Handle(CrearUsuarioCommand request, CancellationToken cancellationToken)
+    {
+        if (!creationKeyValidator.IsValid(request.ClaveCreacion))
+            throw new UnauthorizedAccessException("Clave de creacion de usuario invalida.");
+
+        if (await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken) is not null)
+            throw new InvalidOperationException("El email ya esta registrado.");
+
+        var usuario = new Usuario(request.Nombre, request.Email, hasher.Hash(request.Password), request.Rol, request.CiNit, request.Telefono, request.Direccion, request.Cargo, request.Notas);
+        await uow.Usuarios.AgregarAsync(usuario, cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
+        return usuario.ToDto();
+    }
 
     public async Task<bool> Handle(EliminarUsuarioPorEmailCommand request, CancellationToken cancellationToken)
     {
         var usuario = await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
+        await EliminarUsuarioAsync(usuario, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> Handle(EliminarUsuarioCommand request, CancellationToken cancellationToken)
+    {
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(request.Id, cancellationToken)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        await EliminarUsuarioAsync(usuario, cancellationToken);
+        return true;
+    }
+
+    public async Task<UsuarioDto> Handle(ActualizarMiPerfilCommand request, CancellationToken cancellationToken)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("Sesion invalida.");
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        var existente = await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken);
+        if (existente is not null && existente.Id != usuario.Id)
+            throw new InvalidOperationException("El email ya esta registrado por otro usuario.");
+
+        usuario.ActualizarPerfil(request.Nombre, request.Email, request.CiNit, request.Telefono, request.Direccion, request.Cargo, request.Notas);
+        await uow.SaveChangesAsync(cancellationToken);
+        return usuario.ToDto();
+    }
+
+    public async Task<bool> Handle(CambiarMiPasswordCommand request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.NuevaPassword) || request.NuevaPassword.Length < 8)
+            throw new InvalidOperationException("La nueva contrasena debe tener al menos 8 caracteres.");
+
+        var userId = currentUser.UserId ?? throw new UnauthorizedAccessException("Sesion invalida.");
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        if (!hasher.Verify(request.PasswordActual, usuario.PasswordHash))
+            throw new UnauthorizedAccessException("La contrasena actual no es correcta.");
+
+        usuario.CambiarPassword(hasher.Hash(request.NuevaPassword));
+        await uow.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task EliminarUsuarioAsync(Usuario usuario, CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId == usuario.Id)
+            throw new InvalidOperationException("No puedes eliminar tu propio usuario desde la sesion actual.");
+
         if (usuario.Rol == RolSistema.Administrador && await uow.Usuarios.ContarAdministradoresAsync(cancellationToken) <= 1)
-        {
             throw new InvalidOperationException("No se puede eliminar el ultimo administrador.");
-        }
 
         uow.Usuarios.Eliminar(usuario);
         await uow.SaveChangesAsync(cancellationToken);
-        return true;
     }
 }
 
@@ -352,4 +426,5 @@ public static class MappingExtensions
     public static CajaMovimientoDto ToDto(this CajaMovimiento x) => new(x.Id, x.Fecha, x.Tipo, x.Monto, x.Concepto, x.UsuarioId, x.VentaId, x.PagoId, x.CompraId);
     public static NotificacionDto ToDto(this Notificacion x) => new(x.Id, x.Tipo, x.Titulo, x.Mensaje, x.UsuarioId, x.Leida, x.CreadoEn);
     public static AuditoriaDto ToDto(this Auditoria x) => new(x.Id, x.UsuarioId, x.FechaHora, x.Accion, x.Entidad, x.EntidadId, x.DatosAntes, x.DatosDespues);
+    public static UsuarioDto ToDto(this Usuario x) => new(x.Id, x.Nombre, x.Email, x.Rol, x.Estado, x.CiNit, x.Telefono, x.Direccion, x.Cargo, x.Notas);
 }

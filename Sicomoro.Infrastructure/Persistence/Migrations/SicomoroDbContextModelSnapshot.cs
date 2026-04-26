@@ -765,8 +765,17 @@ namespace Sicomoro.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ActualizadoEn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Cargo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CiNit")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreadoEn")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Direccion")
+                        .HasColumnType("text");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -779,12 +788,18 @@ namespace Sicomoro.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Notas")
+                        .HasColumnType("text");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("Rol")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Telefono")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 

@@ -12,10 +12,15 @@ public interface ICurrentUserService
 public interface IAuthService
 {
     Task<AuthResponse> LoginAsync(string email, string password, CancellationToken cancellationToken = default);
-    Task<AuthResponse> RegisterAsync(string nombre, string email, string password, RolSistema rol, CancellationToken cancellationToken = default);
+    Task<AuthResponse> RegisterAsync(string nombre, string email, string password, RolSistema rol, string? ciNit = null, string? telefono = null, string? direccion = null, string? cargo = null, string? notas = null, CancellationToken cancellationToken = default);
 }
 
 public sealed record AuthResponse(Guid UsuarioId, string Nombre, string Email, RolSistema Rol, string Token);
+
+public interface IUserCreationKeyValidator
+{
+    bool IsValid(string? key);
+}
 
 public interface IPasswordHasher
 {
@@ -59,4 +64,3 @@ public interface IWhatsAppSender
 {
     Task EnviarAsync(string telefono, string mensaje, string? adjunto = null, CancellationToken cancellationToken = default);
 }
-

@@ -21,7 +21,9 @@ const state = {
     deudas: [],
     transportes: [],
     notificaciones: [],
-    auditoria: []
+    auditoria: [],
+    usuarios: [],
+    perfil: null
   }
 };
 
@@ -38,8 +40,14 @@ const views = [
   ["transportes", "Transportes"],
   ["documentos", "Documentos"],
   ["reportes", "Reportes"],
+  ["perfil", "Mi perfil"],
+  ["usuarios", "Usuarios", "admin"],
   ["notificaciones", "Notificaciones"],
   ["auditoria", "Auditoria"]
+];
+
+const roles = [
+  [1, "Administrador"], [2, "Vendedor"], [3, "Inventario"], [4, "Cobrador"], [5, "Gerente"], [6, "Solo lectura"]
 ];
 
 const unidades = [
@@ -63,6 +71,18 @@ const ventaEstados = {
   3: "Parcial",
   4: "Anulada"
 };
+
+function isAdmin() {
+  return Number(state.user?.rol) === 1 || state.user?.rol === "Administrador";
+}
+
+function visibleViews() {
+  return views.filter(view => view[2] !== "admin" || isAdmin());
+}
+
+function rolLabel(value) {
+  return (roles.find(([id]) => Number(id) === Number(value)) || [0, value])[1];
+}
 
 function money(value) {
   return Number(value || 0).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -158,7 +178,7 @@ function formData(form) {
     if (value === "") data[key] = null;
     else if (key.endsWith("Id") || key === "id") data[key] = value;
     else if (["cantidad", "precioCompra", "precioVentaSugerido", "stockMinimo", "largo", "ancho", "espesor", "costoTransporte", "otrosCostos", "precioUnitario", "descuento", "monto", "nuevoStock"].includes(key)) data[key] = Number(value);
-    else if (["unidadMedida", "estado", "metodoPago", "tipo"].includes(key)) data[key] = Number(value);
+    else if (["unidadMedida", "estado", "metodoPago", "tipo", "rol"].includes(key)) data[key] = Number(value);
     else data[key] = value;
   });
   return data;
@@ -238,7 +258,7 @@ function renderShell(content, title) {
           <span>${esc(state.user?.nombre || "Sistema")}</span>
         </div>
         <nav class="nav">
-          ${views.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-view="${id}">${label}</button>`).join("")}
+          ${visibleViews().map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-view="${id}">${label}</button>`).join("")}
         </nav>
         <div class="session">
           <span>${esc(state.user?.email || "")}</span>
@@ -273,10 +293,13 @@ async function refreshView() {
   if (state.view === "transportes") state.cache.transportes = await api("/api/transportes");
   if (state.view === "notificaciones") state.cache.notificaciones = await api("/api/notificaciones?soloNoLeidas=false");
   if (state.view === "auditoria") state.cache.auditoria = await api("/api/auditoria?take=100");
+  if (state.view === "perfil") state.cache.perfil = await api("/api/usuarios/me");
+  if (state.view === "usuarios" && isAdmin()) state.cache.usuarios = await api("/api/usuarios");
 }
 
 async function render() {
   if (!state.token) return renderLogin();
+  if (state.view === "usuarios" && !isAdmin()) state.view = "perfil";
   await safe(refreshView, "");
   const renderer = {
     dashboard: renderDashboard,
@@ -291,6 +314,8 @@ async function render() {
     transportes: renderTransportes,
     documentos: renderDocumentos,
     reportes: renderReportes,
+    perfil: renderPerfil,
+    usuarios: renderUsuarios,
     notificaciones: renderNotificaciones,
     auditoria: renderAuditoria
   }[state.view] || renderDashboard;
@@ -846,6 +871,127 @@ function renderReportes() {
 
 function reportHtml(html) {
   document.getElementById("reportResult").innerHTML = html;
+}
+
+function renderPerfil() {
+  const perfil = state.cache.perfil || state.user || {};
+  renderShell(`
+    <section class="layout">
+      <div class="panel">
+        <div class="panel-header"><h3>Mi perfil</h3></div>
+        <div class="panel-body">
+          <form id="perfilForm" class="grid" autocomplete="off">
+            <label class="full">Nombre completo<input name="nombre" value="${esc(perfil.nombre || "")}" required></label>
+            <label>Email<input name="email" type="email" value="${esc(perfil.email || "")}" required></label>
+            <label>CI/NIT<input name="ciNit" value="${esc(perfil.ciNit || "")}"></label>
+            <label>Telefono<input name="telefono" value="${esc(perfil.telefono || "")}"></label>
+            <label>Cargo<input name="cargo" value="${esc(perfil.cargo || rolLabel(perfil.rol))}"></label>
+            <label class="full">Direccion<input name="direccion" value="${esc(perfil.direccion || "")}"></label>
+            <label class="full">Notas<textarea name="notas">${esc(perfil.notas || "")}</textarea></label>
+            <div class="actions full"><button class="primary">Guardar perfil</button></div>
+          </form>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Seguridad</h3></div>
+        <div class="panel-body">
+          <form id="passwordForm" class="grid" autocomplete="off">
+            <label class="full">Contrasena actual<input name="passwordActual" type="password" required></label>
+            <label>Nueva contrasena<input name="nuevaPassword" type="password" minlength="8" required></label>
+            <label>Repetir contrasena<input name="confirmarPassword" type="password" minlength="8" required></label>
+            <div class="actions full"><button class="primary">Cambiar contrasena</button></div>
+          </form>
+        </div>
+      </div>
+    </section>
+  `, "Mi perfil");
+
+  document.getElementById("perfilForm").onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      const updated = await api("/api/usuarios/me", { method: "PUT", body: JSON.stringify(formData(event.currentTarget)) });
+      state.cache.perfil = updated;
+      state.user = { ...state.user, nombre: updated.nombre, email: updated.email, rol: updated.rol };
+      localStorage.setItem("sicomoro_user", JSON.stringify(state.user));
+      render();
+    }, "Perfil actualizado");
+  };
+
+  document.getElementById("passwordForm").onsubmit = async event => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    if (data.nuevaPassword !== data.confirmarPassword) {
+      toast("Las contrasenas no coinciden");
+      return;
+    }
+
+    await safe(async () => {
+      await api("/api/usuarios/me/password", {
+        method: "PUT",
+        body: JSON.stringify({ passwordActual: data.passwordActual, nuevaPassword: data.nuevaPassword })
+      });
+      event.currentTarget.reset();
+    }, "Contrasena actualizada");
+  };
+}
+
+function renderUsuarios() {
+  renderShell(`
+    <section class="layout">
+      <div class="panel">
+        <div class="panel-header"><h3>Crear usuario</h3></div>
+        <div class="panel-body">
+          <form id="usuarioForm" class="grid" autocomplete="off">
+            <label class="full">Clave de creacion<input name="claveCreacion" type="password" required></label>
+            <label class="full">Nombre completo<input name="nombre" required></label>
+            <label>Email<input name="email" type="email" required></label>
+            <label>Contrasena<input name="password" type="password" minlength="8" required></label>
+            <label>Rol<select name="rol">${options(roles, 6)}</select></label>
+            <label>CI/NIT<input name="ciNit"></label>
+            <label>Telefono<input name="telefono"></label>
+            <label>Cargo<input name="cargo"></label>
+            <label class="full">Direccion<input name="direccion"></label>
+            <label class="full">Notas<textarea name="notas"></textarea></label>
+            <div class="actions full"><button class="primary">Crear usuario</button></div>
+          </form>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Usuarios</h3></div>
+        ${table([
+          { label: "Nombre", key: "nombre" },
+          { label: "Email", key: "email" },
+          { label: "Rol", render: x => badge(rolLabel(x.rol), Number(x.rol) === 1 ? "warn" : "") },
+          { label: "Telefono", key: "telefono" },
+          { label: "Cargo", key: "cargo" }
+        ], state.cache.usuarios, row => `
+          <div class="split-actions">
+            ${row.id === state.user?.usuarioId ? `<span class="badge">Tu cuenta</span>` : `<button data-delete-usuario="${row.id}" class="danger">Borrar</button>`}
+          </div>
+        `)}
+      </div>
+    </section>
+  `, "Usuarios");
+
+  document.getElementById("usuarioForm").onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      await api("/api/usuarios", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
+      event.currentTarget.reset();
+      state.cache.usuarios = await api("/api/usuarios");
+      render();
+    }, "Usuario creado");
+  };
+
+  document.querySelectorAll("[data-delete-usuario]").forEach(btn => btn.onclick = async () => {
+    const usuario = state.cache.usuarios.find(x => x.id === btn.dataset.deleteUsuario);
+    if (!confirm(`Borrar usuario ${usuario?.email || ""}? Esta accion no borra auditorias ni ventas ya registradas.`)) return;
+    await safe(async () => {
+      await api(`/api/usuarios/${btn.dataset.deleteUsuario}`, { method: "DELETE" });
+      state.cache.usuarios = await api("/api/usuarios");
+      render();
+    }, "Usuario eliminado");
+  });
 }
 
 function renderNotificaciones() {

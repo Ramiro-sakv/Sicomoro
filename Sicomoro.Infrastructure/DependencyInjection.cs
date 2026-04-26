@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserCreationKeyValidator, UserCreationKeyValidator>();
         services.AddScoped<EmailSenderAdapter>();
         services.AddScoped<IEmailSender>(sp => new RetryEmailSenderDecorator(sp.GetRequiredService<EmailSenderAdapter>()));
         services.AddScoped<IWhatsAppSender, WhatsAppSenderAdapter>();

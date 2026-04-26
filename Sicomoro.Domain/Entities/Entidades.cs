@@ -7,12 +7,17 @@ namespace Sicomoro.Domain.Entities;
 public sealed class Usuario : EntidadBase
 {
     private Usuario() { }
-    public Usuario(string nombre, string email, string passwordHash, RolSistema rol)
+    public Usuario(string nombre, string email, string passwordHash, RolSistema rol, string? ciNit = null, string? telefono = null, string? direccion = null, string? cargo = null, string? notas = null)
     {
         Nombre = nombre.Trim();
         Email = email.Trim().ToLowerInvariant();
         PasswordHash = passwordHash;
         Rol = rol;
+        CiNit = ciNit;
+        Telefono = telefono;
+        Direccion = direccion;
+        Cargo = cargo;
+        Notas = notas;
     }
 
     public string Nombre { get; private set; } = string.Empty;
@@ -20,6 +25,29 @@ public sealed class Usuario : EntidadBase
     public string PasswordHash { get; private set; } = string.Empty;
     public RolSistema Rol { get; private set; }
     public EstadoRegistro Estado { get; private set; } = EstadoRegistro.Activo;
+    public string? CiNit { get; private set; }
+    public string? Telefono { get; private set; }
+    public string? Direccion { get; private set; }
+    public string? Cargo { get; private set; }
+    public string? Notas { get; private set; }
+
+    public void ActualizarPerfil(string nombre, string email, string? ciNit, string? telefono, string? direccion, string? cargo, string? notas)
+    {
+        Nombre = nombre.Trim();
+        Email = email.Trim().ToLowerInvariant();
+        CiNit = ciNit;
+        Telefono = telefono;
+        Direccion = direccion;
+        Cargo = cargo;
+        Notas = notas;
+        MarcarActualizado();
+    }
+
+    public void CambiarPassword(string passwordHash)
+    {
+        PasswordHash = passwordHash;
+        MarcarActualizado();
+    }
 }
 
 public sealed class Rol : EntidadBase

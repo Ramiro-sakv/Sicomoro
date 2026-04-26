@@ -62,18 +62,27 @@ public sealed class AuthService(IUnitOfWork uow, IPasswordHasher hasher, IJwtTok
     public async Task<AuthResponse> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         var usuario = await uow.Usuarios.ObtenerPorEmailAsync(email, cancellationToken) ?? throw new UnauthorizedAccessException("Credenciales invalidas.");
+        if (usuario.Estado != EstadoRegistro.Activo) throw new UnauthorizedAccessException("Usuario inactivo.");
         if (!hasher.Verify(password, usuario.PasswordHash)) throw new UnauthorizedAccessException("Credenciales invalidas.");
         return new AuthResponse(usuario.Id, usuario.Nombre, usuario.Email, usuario.Rol, jwt.CrearToken(usuario));
     }
 
-    public async Task<AuthResponse> RegisterAsync(string nombre, string email, string password, RolSistema rol, CancellationToken cancellationToken = default)
+    public async Task<AuthResponse> RegisterAsync(string nombre, string email, string password, RolSistema rol, string? ciNit = null, string? telefono = null, string? direccion = null, string? cargo = null, string? notas = null, CancellationToken cancellationToken = default)
     {
         if (await uow.Usuarios.ObtenerPorEmailAsync(email, cancellationToken) is not null)
             throw new InvalidOperationException("El email ya esta registrado.");
-        var usuario = new Usuario(nombre, email, hasher.Hash(password), rol);
+        var usuario = new Usuario(nombre, email, hasher.Hash(password), rol, ciNit, telefono, direccion, cargo, notas);
         await uow.Usuarios.AgregarAsync(usuario, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
         return new AuthResponse(usuario.Id, usuario.Nombre, usuario.Email, usuario.Rol, jwt.CrearToken(usuario));
     }
 }
 
+public sealed class UserCreationKeyValidator(IConfiguration configuration) : IUserCreationKeyValidator
+{
+    public bool IsValid(string? key)
+    {
+        var expected = configuration["UserRegistration:Clave"] ?? "13067264";
+        return !string.IsNullOrWhiteSpace(key) && key == expected;
+    }
+}

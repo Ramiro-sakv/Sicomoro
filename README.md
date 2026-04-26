@@ -78,6 +78,13 @@ Usuario seed:
 }
 ```
 
+Usuarios:
+
+- Cada usuario puede editar su perfil en `Mi perfil`.
+- Los administradores ven la seccion `Usuarios`.
+- Para crear usuarios se requiere rol `Administrador` y la clave de creacion `13067264`.
+- Los administradores pueden borrar usuarios, excepto su propia cuenta y el ultimo administrador.
+
 ## Comandos locales
 
 ```powershell

@@ -100,7 +100,12 @@ public sealed class SicomoroDbContext(DbContextOptions<SicomoroDbContext> option
             Email = "admin@sicomoro.local",
             PasswordHash = PasswordHasher.HashDeterministic("Admin123*"),
             Rol = RolSistema.Administrador,
-            Estado = EstadoRegistro.Activo
+            Estado = EstadoRegistro.Activo,
+            CiNit = (string?)null,
+            Telefono = (string?)null,
+            Direccion = (string?)null,
+            Cargo = (string?)null,
+            Notas = (string?)null
         });
         modelBuilder.Entity<ProductoMadera>().HasData(
             new { Id = Guid.Parse("40000000-0000-0000-0000-000000000001"), CreadoEn = seedDate, ActualizadoEn = (DateTime?)null, NombreComercial = "Tajibo 2x4", TipoMadera = "Tajibo", UnidadMedida = UnidadMedida.Pieza, Largo = 2m, Ancho = 4m, Espesor = 0m, Calidad = "A", PrecioCompra = 35m, PrecioVentaSugerido = 55m, Estado = EstadoRegistro.Activo, StockMinimo = 10m, Observaciones = "Producto inicial" },

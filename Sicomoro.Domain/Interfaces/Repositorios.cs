@@ -68,6 +68,8 @@ public interface IAuditoriaRepository : IRepository<Auditoria>
 public interface IUsuarioRepository : IRepository<Usuario>
 {
     Task<Usuario?> ObtenerPorEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<int> ContarAdministradoresAsync(CancellationToken cancellationToken = default);
+    void Eliminar(Usuario usuario);
 }
 
 public interface IUnitOfWork

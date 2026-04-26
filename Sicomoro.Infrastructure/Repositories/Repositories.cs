@@ -107,7 +107,12 @@ public sealed class CobroRepository(SicomoroDbContext db) : Repository<Cobro>(db
 public sealed class UsuarioRepository(SicomoroDbContext db) : Repository<Usuario>(db), IUsuarioRepository
 {
     public Task<Usuario?> ObtenerPorEmailAsync(string email, CancellationToken cancellationToken = default) =>
-        Db.Users.FirstOrDefaultAsync(x => x.Email == email.ToLower(), cancellationToken);
+        Db.Users.FirstOrDefaultAsync(x => x.Email == email.ToLowerInvariant(), cancellationToken);
+
+    public Task<int> ContarAdministradoresAsync(CancellationToken cancellationToken = default) =>
+        Db.Users.CountAsync(x => x.Rol == RolSistema.Administrador, cancellationToken);
+
+    public void Eliminar(Usuario usuario) => Db.Users.Remove(usuario);
 }
 
 public sealed class CajaRepository(SicomoroDbContext db) : Repository<CajaMovimiento>(db), ICajaRepository

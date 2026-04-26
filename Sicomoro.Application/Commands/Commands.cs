@@ -11,6 +11,7 @@ namespace Sicomoro.Application.Commands;
 
 public sealed record LoginCommand(string Email, string Password) : IRequest<AuthResponse>;
 public sealed record RegisterCommand(string Nombre, string Email, string Password, RolSistema Rol) : IRequest<AuthResponse>;
+public sealed record EliminarUsuarioPorEmailCommand(string Email) : IRequest<bool>;
 
 public sealed record CrearClienteCommand(string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas) : IRequest<ClienteDto>;
 public sealed record ActualizarClienteCommand(Guid Id, string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas, EstadoRegistro Estado) : IRequest<ClienteDto>;
@@ -33,15 +34,31 @@ public sealed record RegistrarCajaMovimientoCommand(TipoCajaMovimiento Tipo, dec
 public sealed record GenerarDocumentoVentaCommand(Guid VentaId, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<DocumentoDto>;
 public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<bool>;
 
-public sealed class AuthHandlers(IAuthService authService) :
+public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow) :
     IRequestHandler<LoginCommand, AuthResponse>,
-    IRequestHandler<RegisterCommand, AuthResponse>
+    IRequestHandler<RegisterCommand, AuthResponse>,
+    IRequestHandler<EliminarUsuarioPorEmailCommand, bool>
 {
     public Task<AuthResponse> Handle(LoginCommand request, CancellationToken cancellationToken) =>
         authService.LoginAsync(request.Email, request.Password, cancellationToken);
 
     public Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken) =>
         authService.RegisterAsync(request.Nombre, request.Email, request.Password, request.Rol, cancellationToken);
+
+    public async Task<bool> Handle(EliminarUsuarioPorEmailCommand request, CancellationToken cancellationToken)
+    {
+        var usuario = await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        if (usuario.Rol == RolSistema.Administrador && await uow.Usuarios.ContarAdministradoresAsync(cancellationToken) <= 1)
+        {
+            throw new InvalidOperationException("No se puede eliminar el ultimo administrador.");
+        }
+
+        uow.Usuarios.Eliminar(usuario);
+        await uow.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
 
 public sealed class CatalogoHandlers(IUnitOfWork uow) :

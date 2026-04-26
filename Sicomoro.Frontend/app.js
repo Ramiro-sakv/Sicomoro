@@ -191,14 +191,14 @@ async function loadCommon() {
 function renderLogin() {
   app.innerHTML = `
     <main class="login-page">
-      <form class="login-card" id="loginForm">
+      <form class="login-card" id="loginForm" autocomplete="off">
         <h1>Sicomoro</h1>
         <p>Barraca de madera</p>
         <label>Email
-          <input name="email" value="admin@sicomoro.local" autocomplete="username">
+          <input name="email" type="email" autocomplete="off" required>
         </label>
         <label>Password
-          <input name="password" type="password" value="Admin123*" autocomplete="current-password">
+          <input name="password" type="password" autocomplete="off" required>
         </label>
         <label>API
           <input name="apiBase" value="${esc(state.apiBase)}">

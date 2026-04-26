@@ -21,6 +21,7 @@ public sealed record ListarCobrosClienteQuery(Guid ClienteId) : IRequest<List<Co
 public sealed record ListarCajaMovimientosQuery(DateTime Desde, DateTime Hasta) : IRequest<List<CajaMovimientoDto>>;
 public sealed record ListarNotificacionesQuery(bool SoloNoLeidas = false) : IRequest<List<NotificacionDto>>;
 public sealed record ListarAuditoriaQuery(int Take = 100) : IRequest<List<AuditoriaDto>>;
+public sealed record ListarUsuariosQuery : IRequest<List<UsuarioDto>>;
 public sealed record ReporteVentasQuery(DateTime Desde, DateTime Hasta) : IRequest<ReporteVentasDto>;
 public sealed record ReporteInventarioBajoQuery : IRequest<List<InventarioDto>>;
 public sealed record ReporteClientesDeudoresQuery : IRequest<List<ClienteDto>>;
@@ -42,6 +43,7 @@ public sealed class QueryHandlers(IUnitOfWork uow) :
     IRequestHandler<ListarCajaMovimientosQuery, List<CajaMovimientoDto>>,
     IRequestHandler<ListarNotificacionesQuery, List<NotificacionDto>>,
     IRequestHandler<ListarAuditoriaQuery, List<AuditoriaDto>>,
+    IRequestHandler<ListarUsuariosQuery, List<UsuarioDto>>,
     IRequestHandler<ReporteVentasQuery, ReporteVentasDto>,
     IRequestHandler<ReporteInventarioBajoQuery, List<InventarioDto>>,
     IRequestHandler<ReporteClientesDeudoresQuery, List<ClienteDto>>,
@@ -94,6 +96,7 @@ public sealed class QueryHandlers(IUnitOfWork uow) :
     public async Task<List<CajaMovimientoDto>> Handle(ListarCajaMovimientosQuery r, CancellationToken ct) => (await uow.Caja.ListarPorRangoAsync(r.Desde, r.Hasta, ct)).Select(x => x.ToDto()).ToList();
     public async Task<List<NotificacionDto>> Handle(ListarNotificacionesQuery r, CancellationToken ct) => (r.SoloNoLeidas ? await uow.Notificaciones.ListarNoLeidasAsync(ct) : await uow.Notificaciones.ListarAsync(ct)).Select(x => x.ToDto()).ToList();
     public async Task<List<AuditoriaDto>> Handle(ListarAuditoriaQuery r, CancellationToken ct) => (await uow.Auditoria.ListarRecienteAsync(Math.Clamp(r.Take, 1, 500), ct)).Select(x => x.ToDto()).ToList();
+    public async Task<List<UsuarioDto>> Handle(ListarUsuariosQuery r, CancellationToken ct) => (await uow.Usuarios.ListarAsync(ct)).Select(x => new UsuarioDto(x.Id, x.Nombre, x.Email, x.Rol, x.Estado)).OrderBy(x => x.Nombre).ToList();
 
     public async Task<ReporteVentasDto> Handle(ReporteVentasQuery r, CancellationToken ct)
     {

@@ -19,6 +19,7 @@ public sealed record CrearProveedorCommand(string Nombre, string LugarOrigen, st
 public sealed record CrearProductoCommand(string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, string? Observaciones) : IRequest<ProductoDto>;
 public sealed record ActualizarProductoCommand(Guid Id, string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, EstadoRegistro Estado, string? Observaciones) : IRequest<ProductoDto>;
 public sealed record InactivarProductoCommand(Guid Id) : IRequest<bool>;
+public sealed record EliminarProductoCommand(Guid Id) : IRequest<bool>;
 public sealed record AjustarInventarioCommand(Guid ProductoId, decimal NuevoStock, string? UbicacionInterna, string Motivo) : IRequest<InventarioDto>;
 public sealed record CrearTransporteCommand(string? Camion, string? Chofer, string? Placa, string LugarOrigen, DateTime? FechaSalida, DateTime? FechaLlegada, decimal CostoTransporte, EstadoTransporte Estado, string? Observaciones, Guid? CompraId) : IRequest<TransporteDto>;
 public sealed record ActualizarEstadoTransporteCommand(Guid Id, EstadoTransporte Estado, DateTime? FechaLlegada) : IRequest<TransporteDto>;
@@ -51,6 +52,7 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
     IRequestHandler<CrearProductoCommand, ProductoDto>,
     IRequestHandler<ActualizarProductoCommand, ProductoDto>,
     IRequestHandler<InactivarProductoCommand, bool>,
+    IRequestHandler<EliminarProductoCommand, bool>,
     IRequestHandler<CrearTransporteCommand, TransporteDto>,
     IRequestHandler<ActualizarEstadoTransporteCommand, TransporteDto>
 {
@@ -108,6 +110,19 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
     {
         var producto = await uow.Productos.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");
         producto.Inactivar();
+        await uow.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> Handle(EliminarProductoCommand r, CancellationToken ct)
+    {
+        var producto = await uow.Productos.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");
+        if (await uow.Productos.TieneHistorialAsync(r.Id, ct))
+        {
+            throw new InvalidOperationException("No se puede borrar definitivamente un producto con compras, ventas o movimientos de inventario. Marcalo como Inactivo para ocultarlo de nuevas operaciones sin perder historial.");
+        }
+
+        await uow.Productos.EliminarDefinitivoAsync(producto, ct);
         await uow.SaveChangesAsync(ct);
         return true;
     }

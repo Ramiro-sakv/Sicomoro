@@ -447,7 +447,7 @@ function renderProductos() {
         ], state.cache.productos, row => `
           <div class="split-actions">
             <button data-edit-producto="${row.id}">Editar</button>
-            ${row.estado === 1 ? `<button data-delete-producto="${row.id}" class="danger">Borrar</button>` : ""}
+            <button data-delete-producto="${row.id}" class="danger">Borrar</button>
           </div>
         `)}
       </div>
@@ -471,12 +471,12 @@ function renderProductos() {
   document.querySelectorAll("[data-edit-producto]").forEach(btn => btn.onclick = () => fillForm(form, findProducto(btn.dataset.editProducto)));
   document.querySelectorAll("[data-delete-producto]").forEach(btn => btn.onclick = async () => {
     const producto = findProducto(btn.dataset.deleteProducto);
-    if (!confirm(`Inactivar ${producto?.nombreComercial || "producto"}? No se eliminara el historial.`)) return;
+    if (!confirm(`Borrar definitivamente ${producto?.nombreComercial || "producto"}? Si tiene compras, ventas o movimientos, el sistema no lo borrara para proteger el historial.`)) return;
     await safe(async () => {
       await api(`/api/productos/${btn.dataset.deleteProducto}`, { method: "DELETE" });
       await loadCommon();
       render();
-    }, "Producto inactivado");
+    }, "Producto eliminado");
   });
 }
 

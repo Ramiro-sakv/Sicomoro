@@ -18,7 +18,11 @@ public interface IClienteRepository : IRepository<Cliente>
 }
 
 public interface IProveedorRepository : IRepository<Proveedor> { }
-public interface IProductoRepository : IRepository<ProductoMadera> { }
+public interface IProductoRepository : IRepository<ProductoMadera>
+{
+    Task<bool> TieneHistorialAsync(Guid productoId, CancellationToken cancellationToken = default);
+    Task EliminarDefinitivoAsync(ProductoMadera producto, CancellationToken cancellationToken = default);
+}
 public interface ITransporteRepository : IRepository<Transporte> { }
 
 public interface IInventarioRepository : IRepository<Inventario>

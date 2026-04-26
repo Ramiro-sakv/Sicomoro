@@ -35,7 +35,24 @@ public sealed class ClienteRepository(SicomoroDbContext db) : Repository<Cliente
 }
 
 public sealed class ProveedorRepository(SicomoroDbContext db) : Repository<Proveedor>(db), IProveedorRepository;
-public sealed class ProductoRepository(SicomoroDbContext db) : Repository<ProductoMadera>(db), IProductoRepository;
+public sealed class ProductoRepository(SicomoroDbContext db) : Repository<ProductoMadera>(db), IProductoRepository
+{
+    public async Task<bool> TieneHistorialAsync(Guid productoId, CancellationToken cancellationToken = default) =>
+        await Db.CompraDetalles.AnyAsync(x => x.ProductoMaderaId == productoId, cancellationToken)
+        || await Db.VentaDetalles.AnyAsync(x => x.ProductoMaderaId == productoId, cancellationToken)
+        || await Db.MovimientosInventario.AnyAsync(x => x.ProductoMaderaId == productoId, cancellationToken);
+
+    public async Task EliminarDefinitivoAsync(ProductoMadera producto, CancellationToken cancellationToken = default)
+    {
+        var inventario = await Db.Inventario.FirstOrDefaultAsync(x => x.ProductoMaderaId == producto.Id, cancellationToken);
+        if (inventario is not null)
+        {
+            Db.Inventario.Remove(inventario);
+        }
+
+        Db.ProductosMadera.Remove(producto);
+    }
+}
 public sealed class TransporteRepository(SicomoroDbContext db) : Repository<Transporte>(db), ITransporteRepository
 {
     public override Task<List<Transporte>> ListarAsync(CancellationToken cancellationToken = default) =>

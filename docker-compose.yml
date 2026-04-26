@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: sicomoro-postgres
+    environment:
+      POSTGRES_DB: sicomoro
+      POSTGRES_USER: sicomoro
+      POSTGRES_PASSWORD: sicomoro123
+    ports:
+      - "5432:5432"
+    volumes:
+      - sicomoro_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sicomoro -d sicomoro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Sicomoro.Api/Dockerfile
+    container_name: sicomoro-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=sicomoro;Username=sicomoro;Password=sicomoro123
+      Jwt__Issuer: Sicomoro
+      Jwt__Key: Sicomoro-dev-key-change-this-value-32chars
+      ApplyMigrationsOnStartup: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - sicomoro_docs:/app/storage/documentos
+
+  frontend:
+    build:
+      context: ./Sicomoro.Frontend
+    container_name: sicomoro-frontend
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+volumes:
+  sicomoro_pgdata:
+  sicomoro_docs:

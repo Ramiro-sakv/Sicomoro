@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: sicomoro
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Sicomoro.Api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: ApplyMigrationsOnStartup
+        value: "true"
+      - key: Swagger__Enabled
+        value: "false"
+      - key: Jwt__Issuer
+        value: Sicomoro
+      - key: Jwt__Key
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sicomoro-db
+          property: connectionString
+
+databases:
+  - name: sicomoro-db
+    plan: free
+    region: oregon
+    databaseName: sicomoro
+    user: sicomoro
+    postgresMajorVersion: "16"
+    ipAllowList: []

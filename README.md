@@ -2,6 +2,8 @@
 
 Backend principal para administrar una barraca de madera. Esta base usa .NET 8 Web API, PostgreSQL, EF Core, JWT, Swagger, MediatR, arquitectura por capas y pruebas con xUnit.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Ramiro-sakv/Sicomoro)
+
 ## Arquitectura
 
 - `Sicomoro.Domain`: entidades, enums, eventos, repositorios abstractos, reglas de dominio, Strategy y State.

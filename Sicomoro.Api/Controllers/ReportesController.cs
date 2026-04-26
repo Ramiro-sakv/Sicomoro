@@ -2,11 +2,12 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Api.Services;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize(Roles = "Administrador,Gerente")]
+[Authorize(Roles = AppRoles.Gestion)]
 [ApiController]
 [Route("api/reportes")]
 public sealed class ReportesController(IReportesProxy reportes) : ControllerBase

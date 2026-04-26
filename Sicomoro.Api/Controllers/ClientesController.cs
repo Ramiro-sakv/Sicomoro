@@ -2,12 +2,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Staff)]
 [ApiController]
 [Route("api/clientes")]
 public sealed class ClientesController(IMediator mediator) : ControllerBase
@@ -21,14 +22,17 @@ public sealed class ClientesController(IMediator mediator) : ControllerBase
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ObtenerClienteQuery(id), ct)));
 
     [HttpPost]
+    [Authorize(Roles = AppRoles.Ventas)]
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearClienteCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(command, ct)));
 
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = AppRoles.Ventas)]
     public async Task<ActionResult<ApiResponse<object>>> Put(Guid id, ActualizarClienteRequest request, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ActualizarClienteCommand(id, request.NombreRazonSocial, request.CiNit, request.Telefono, request.Direccion, request.Ciudad, request.Notas, request.Estado), ct)));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = AppRoles.Gestion)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new InactivarClienteCommand(id), ct)));
 }

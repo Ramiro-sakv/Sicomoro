@@ -2,12 +2,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Staff)]
 [ApiController]
 [Route("api/ventas")]
 public sealed class VentasController(IMediator mediator) : ControllerBase
@@ -21,18 +22,20 @@ public sealed class VentasController(IMediator mediator) : ControllerBase
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ObtenerVentaQuery(id), ct)));
 
     [HttpPost]
+    [Authorize(Roles = AppRoles.Ventas)]
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearVentaCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(new { id = await mediator.Send(command, ct) }));
 
     [HttpPut("{id:guid}/confirmar")]
+    [Authorize(Roles = AppRoles.Ventas)]
     public async Task<ActionResult<ApiResponse<object>>> Confirmar(Guid id, ConfirmarVentaRequest request, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ConfirmarVentaCommand(id, request.MontoPagado), ct)));
 
     [HttpPut("{id:guid}/anular")]
+    [Authorize(Roles = AppRoles.Gestion)]
     public async Task<ActionResult<ApiResponse<object>>> Anular(Guid id, AnularVentaRequest request, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new AnularVentaCommand(id, request.Motivo), ct)));
 }
 
 public sealed record ConfirmarVentaRequest(decimal MontoPagado);
 public sealed record AnularVentaRequest(string Motivo);
-

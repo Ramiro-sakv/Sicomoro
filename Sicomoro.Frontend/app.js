@@ -28,22 +28,22 @@ const state = {
 };
 
 const views = [
-  ["dashboard", "Panel"],
-  ["clientes", "Clientes"],
-  ["proveedores", "Proveedores"],
-  ["productos", "Productos"],
-  ["inventario", "Inventario"],
-  ["compras", "Compras"],
-  ["ventas", "Ventas"],
-  ["cobros", "Cobros"],
-  ["caja", "Caja"],
-  ["transportes", "Transportes"],
-  ["documentos", "Documentos"],
-  ["reportes", "Reportes"],
-  ["perfil", "Mi perfil"],
-  ["usuarios", "Usuarios", "admin"],
-  ["notificaciones", "Notificaciones"],
-  ["auditoria", "Auditoria"]
+  ["dashboard", "Panel", [1, 2, 3, 4, 5]],
+  ["clientes", "Clientes", [1, 2, 4, 5]],
+  ["proveedores", "Proveedores", [1, 3, 5]],
+  ["productos", "Productos", [1, 3, 5]],
+  ["inventario", "Inventario", [1, 3, 5]],
+  ["compras", "Compras", [1, 3, 5]],
+  ["ventas", "Ventas", [1, 2, 5]],
+  ["cobros", "Cobros", [1, 4, 5]],
+  ["caja", "Caja", [1, 4, 5]],
+  ["transportes", "Transportes", [1, 3, 5]],
+  ["documentos", "Documentos", [1, 2, 5]],
+  ["reportes", "Reportes", [1, 5]],
+  ["perfil", "Mi perfil", [1, 2, 3, 4, 5, 6]],
+  ["usuarios", "Usuarios", [1]],
+  ["notificaciones", "Notificaciones", [1, 2, 3, 4, 5]],
+  ["auditoria", "Auditoria", [1, 5]]
 ];
 
 const roles = [
@@ -73,11 +73,21 @@ const ventaEstados = {
 };
 
 function isAdmin() {
-  return Number(state.user?.rol) === 1 || state.user?.rol === "Administrador";
+  return currentRole() === 1;
+}
+
+function currentRole() {
+  if (typeof state.user?.rol === "number") return state.user.rol;
+  return (roles.find(([, label]) => label === state.user?.rol) || [6])[0];
 }
 
 function visibleViews() {
-  return views.filter(view => view[2] !== "admin" || isAdmin());
+  const role = currentRole();
+  return views.filter(([, , allowed]) => allowed.includes(role));
+}
+
+function canAccess(view) {
+  return visibleViews().some(([id]) => id === view);
 }
 
 function rolLabel(value) {
@@ -148,6 +158,7 @@ async function safe(action, message = "Operacion completada") {
 }
 
 function setView(view) {
+  if (!canAccess(view)) view = visibleViews()[0]?.[0] || "perfil";
   state.view = view;
   localStorage.setItem("sicomoro_view", view);
   render();
@@ -299,7 +310,10 @@ async function refreshView() {
 
 async function render() {
   if (!state.token) return renderLogin();
-  if (state.view === "usuarios" && !isAdmin()) state.view = "perfil";
+  if (!canAccess(state.view)) {
+    state.view = visibleViews()[0]?.[0] || "perfil";
+    localStorage.setItem("sicomoro_view", state.view);
+  }
   await safe(refreshView, "");
   const renderer = {
     dashboard: renderDashboard,
@@ -885,7 +899,7 @@ function renderPerfil() {
             <label>Email<input name="email" type="email" value="${esc(perfil.email || "")}" required></label>
             <label>CI/NIT<input name="ciNit" value="${esc(perfil.ciNit || "")}"></label>
             <label>Telefono<input name="telefono" value="${esc(perfil.telefono || "")}"></label>
-            <label>Cargo<input name="cargo" value="${esc(perfil.cargo || rolLabel(perfil.rol))}"></label>
+            <label>Rol / cargo<input value="${esc(rolLabel(perfil.rol))}" disabled></label>
             <label class="full">Direccion<input name="direccion" value="${esc(perfil.direccion || "")}"></label>
             <label class="full">Notas<textarea name="notas">${esc(perfil.notas || "")}</textarea></label>
             <div class="actions full"><button class="primary">Guardar perfil</button></div>
@@ -946,10 +960,9 @@ function renderUsuarios() {
             <label class="full">Nombre completo<input name="nombre" required></label>
             <label>Email<input name="email" type="email" required></label>
             <label>Contrasena<input name="password" type="password" minlength="8" required></label>
-            <label>Rol<select name="rol">${options(roles, 6)}</select></label>
+            <label>Rol / cargo<select name="rol">${options(roles, 6)}</select></label>
             <label>CI/NIT<input name="ciNit"></label>
             <label>Telefono<input name="telefono"></label>
-            <label>Cargo<input name="cargo"></label>
             <label class="full">Direccion<input name="direccion"></label>
             <label class="full">Notas<textarea name="notas"></textarea></label>
             <div class="actions full"><button class="primary">Crear usuario</button></div>
@@ -963,7 +976,7 @@ function renderUsuarios() {
           { label: "Email", key: "email" },
           { label: "Rol", render: x => badge(rolLabel(x.rol), Number(x.rol) === 1 ? "warn" : "") },
           { label: "Telefono", key: "telefono" },
-          { label: "Cargo", key: "cargo" }
+          { label: "Cargo", render: x => rolLabel(x.rol) }
         ], state.cache.usuarios, row => `
           <div class="split-actions">
             ${row.id === state.user?.usuarioId ? `<span class="badge">Tu cuenta</span>` : `<button data-delete-usuario="${row.id}" class="danger">Borrar</button>`}

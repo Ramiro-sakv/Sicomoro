@@ -2,11 +2,12 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Staff)]
 [ApiController]
 [Route("api/notificaciones")]
 public sealed class NotificacionesController(IMediator mediator) : ControllerBase
@@ -15,4 +16,3 @@ public sealed class NotificacionesController(IMediator mediator) : ControllerBas
     public async Task<ActionResult<ApiResponse<object>>> Get([FromQuery] bool soloNoLeidas, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ListarNotificacionesQuery(soloNoLeidas), ct)));
 }
-

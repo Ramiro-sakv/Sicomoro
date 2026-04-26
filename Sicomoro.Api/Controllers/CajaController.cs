@@ -2,12 +2,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Cobranza)]
 [ApiController]
 [Route("api/caja")]
 public sealed class CajaController(IMediator mediator) : ControllerBase
@@ -20,4 +21,3 @@ public sealed class CajaController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Registrar(RegistrarCajaMovimientoCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(command, ct)));
 }
-

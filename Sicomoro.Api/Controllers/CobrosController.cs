@@ -2,17 +2,19 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Staff)]
 [ApiController]
 [Route("api/cobros")]
 public sealed class CobrosController(IMediator mediator) : ControllerBase
 {
     [HttpPost("pagos")]
+    [Authorize(Roles = AppRoles.Cobranza)]
     public async Task<ActionResult<ApiResponse<object>>> Pago(RegistrarPagoCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(command, ct)));
 
@@ -24,4 +26,3 @@ public sealed class CobrosController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Cliente(Guid clienteId, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ListarCobrosClienteQuery(clienteId), ct)));
 }
-

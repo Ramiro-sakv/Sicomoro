@@ -2,11 +2,12 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.Ventas)]
 [ApiController]
 [Route("api/documentos")]
 public sealed class DocumentosController(IMediator mediator) : ControllerBase
@@ -21,4 +22,3 @@ public sealed class DocumentosController(IMediator mediator) : ControllerBase
 }
 
 public sealed record EnviarDocumentoRequest(string Destino);
-

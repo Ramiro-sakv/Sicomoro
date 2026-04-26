@@ -2,12 +2,13 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.InventarioGestion)]
 [ApiController]
 [Route("api/compras")]
 public sealed class ComprasController(IMediator mediator) : ControllerBase
@@ -24,4 +25,3 @@ public sealed class ComprasController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Recibir(Guid id, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new RecibirCompraCommand(id), ct)));
 }
-

@@ -2,13 +2,14 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
+using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
 using Sicomoro.Application.Queries;
 using Sicomoro.Domain.Enums;
 
 namespace Sicomoro.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = AppRoles.InventarioGestion)]
 [ApiController]
 [Route("api/transportes")]
 public sealed class TransportesController(IMediator mediator) : ControllerBase
@@ -27,4 +28,3 @@ public sealed class TransportesController(IMediator mediator) : ControllerBase
 }
 
 public sealed record ActualizarEstadoTransporteRequest(EstadoTransporte Estado, DateTime? FechaLlegada);
-

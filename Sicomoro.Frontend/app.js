@@ -1,9 +1,13 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
 
+function normalizeApiBase(value) {
+  return String(value || API_DEFAULT).trim().replace(/\/+$/, "");
+}
+
 const app = document.getElementById("app");
 const state = {
-  apiBase: localStorage.getItem("sicomoro_api") || API_DEFAULT,
+  apiBase: normalizeApiBase(localStorage.getItem("sicomoro_api") || API_DEFAULT),
   token: localStorage.getItem("sicomoro_token") || "",
   user: JSON.parse(localStorage.getItem("sicomoro_user") || "null"),
   view: localStorage.getItem("sicomoro_view") || "dashboard",
@@ -90,9 +94,15 @@ async function api(path, options = {}) {
   if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
 
-  const response = await fetch(`${state.apiBase}${path}`, { ...options, headers });
+  const response = await fetch(`${normalizeApiBase(state.apiBase)}${path}`, { ...options, headers });
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
+  let payload = null;
+
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
 
   if (response.status === 401) {
     logout();
@@ -100,7 +110,7 @@ async function api(path, options = {}) {
   }
 
   if (!response.ok || payload?.success === false) {
-    throw new Error(payload?.error || `Error HTTP ${response.status}`);
+    throw new Error(payload?.error || text || `Error HTTP ${response.status}`);
   }
 
   return payload?.data ?? payload;
@@ -202,7 +212,7 @@ function renderLogin() {
   document.getElementById("loginForm").onsubmit = async event => {
     event.preventDefault();
     const data = formData(event.currentTarget);
-    state.apiBase = data.apiBase || API_DEFAULT;
+    state.apiBase = normalizeApiBase(data.apiBase || API_DEFAULT);
     localStorage.setItem("sicomoro_api", state.apiBase);
     await safe(async () => {
       const auth = await api("/api/auth/login", {

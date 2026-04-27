@@ -21,7 +21,13 @@ public sealed class ComprasController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearCompraCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(new { id = await mediator.Send(command, ct) }));
 
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<object>>> Put(Guid id, ActualizarCompraRequest request, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new ActualizarCompraCommand(id, request.ProveedorId, request.Origen, request.FechaCompra, request.FechaEstimadaLlegada, request.CostoTransporte, request.OtrosCostos, request.Observaciones, request.Detalles), ct)));
+
     [HttpPut("{id:guid}/recibir")]
     public async Task<ActionResult<ApiResponse<object>>> Recibir(Guid id, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new RecibirCompraCommand(id), ct)));
 }
+
+public sealed record ActualizarCompraRequest(Guid ProveedorId, string Origen, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<Sicomoro.Application.DTOs.CompraDetalleInput> Detalles);

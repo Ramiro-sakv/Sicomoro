@@ -45,7 +45,7 @@ public interface INotificacionService
 
 public interface IFacturacionProvider
 {
-    Task<DocumentoVenta> GenerarDocumentoVentaAsync(Venta venta, Guid usuarioId, CancellationToken cancellationToken = default);
+    Task<DocumentoVenta> GenerarDocumentoVentaAsync(Venta venta, Guid usuarioId, string usuarioNombre, CancellationToken cancellationToken = default);
     Task EnviarDocumentoAsync(DocumentoVenta documento, string destino, CancellationToken cancellationToken = default);
     Task AnularDocumentoAsync(DocumentoVenta documento, string motivo, CancellationToken cancellationToken = default);
 }

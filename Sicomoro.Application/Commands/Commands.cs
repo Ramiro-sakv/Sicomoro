@@ -14,6 +14,7 @@ public sealed record RegisterCommand(string Nombre, string Email, string Passwor
 public sealed record CrearUsuarioCommand(string Nombre, string Email, string Password, RolSistema Rol, string ClaveCreacion, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<UsuarioDto>;
 public sealed record EliminarUsuarioPorEmailCommand(string Email) : IRequest<bool>;
 public sealed record EliminarUsuarioCommand(Guid Id) : IRequest<bool>;
+public sealed record ResetearUsuarioPasswordCommand(Guid Id, string NuevaPassword) : IRequest<bool>;
 public sealed record ActualizarMiPerfilCommand(string Nombre, string Email, string? CiNit, string? Telefono, string? Direccion, string? Cargo, string? Notas) : IRequest<UsuarioDto>;
 public sealed record CambiarMiPasswordCommand(string PasswordActual, string NuevaPassword) : IRequest<bool>;
 
@@ -29,8 +30,10 @@ public sealed record AjustarInventarioCommand(Guid ProductoId, decimal NuevoStoc
 public sealed record CrearTransporteCommand(string? Camion, string? Chofer, string? Placa, string LugarOrigen, DateTime? FechaSalida, DateTime? FechaLlegada, decimal CostoTransporte, EstadoTransporte Estado, string? Observaciones, Guid? CompraId) : IRequest<TransporteDto>;
 public sealed record ActualizarEstadoTransporteCommand(Guid Id, EstadoTransporte Estado, DateTime? FechaLlegada) : IRequest<TransporteDto>;
 public sealed record CrearCompraCommand(Guid ProveedorId, string Origen, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<CompraDetalleInput> Detalles) : IRequest<Guid>;
+public sealed record ActualizarCompraCommand(Guid CompraId, Guid ProveedorId, string Origen, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<CompraDetalleInput> Detalles) : IRequest<CompraDto>;
 public sealed record RecibirCompraCommand(Guid CompraId) : IRequest<bool>;
 public sealed record CrearVentaCommand(Guid ClienteId, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, IReadOnlyCollection<VentaDetalleInput> Detalles) : IRequest<Guid>;
+public sealed record ActualizarVentaCommand(Guid VentaId, Guid ClienteId, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, IReadOnlyCollection<VentaDetalleInput> Detalles) : IRequest<VentaDto>;
 public sealed record ConfirmarVentaCommand(Guid VentaId, decimal MontoPagado) : IRequest<VentaDto>;
 public sealed record AnularVentaCommand(Guid VentaId, string Motivo) : IRequest<bool>;
 public sealed record RegistrarPagoCommand(Guid CobroId, decimal Monto, MetodoPago MetodoPago, string? Referencia) : IRequest<CobroDto>;
@@ -44,6 +47,7 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
     IRequestHandler<CrearUsuarioCommand, UsuarioDto>,
     IRequestHandler<EliminarUsuarioPorEmailCommand, bool>,
     IRequestHandler<EliminarUsuarioCommand, bool>,
+    IRequestHandler<ResetearUsuarioPasswordCommand, bool>,
     IRequestHandler<ActualizarMiPerfilCommand, UsuarioDto>,
     IRequestHandler<CambiarMiPasswordCommand, bool>
 {
@@ -87,6 +91,19 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
         await EliminarUsuarioAsync(usuario, cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> Handle(ResetearUsuarioPasswordCommand request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.NuevaPassword) || request.NuevaPassword.Length < 8)
+            throw new InvalidOperationException("La nueva contrasena debe tener al menos 8 caracteres.");
+
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(request.Id, cancellationToken)
+            ?? throw new KeyNotFoundException("Usuario no encontrado.");
+
+        usuario.CambiarPassword(hasher.Hash(request.NuevaPassword));
+        await uow.SaveChangesAsync(cancellationToken);
         return true;
     }
 
@@ -256,6 +273,7 @@ public sealed class AjustarInventarioHandler(IUnitOfWork uow, ICurrentUserServic
 
 public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentUser) :
     IRequestHandler<CrearCompraCommand, Guid>,
+    IRequestHandler<ActualizarCompraCommand, CompraDto>,
     IRequestHandler<RecibirCompraCommand, bool>
 {
     public async Task<Guid> Handle(CrearCompraCommand r, CancellationToken ct)
@@ -266,6 +284,17 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
         await uow.Compras.AgregarAsync(compra, ct);
         await uow.SaveChangesAsync(ct);
         return compra.Id;
+    }
+
+    public async Task<CompraDto> Handle(ActualizarCompraCommand r, CancellationToken ct)
+    {
+        if (r.Detalles.Count == 0) throw new InvalidOperationException("La compra debe tener detalle.");
+        var compra = await uow.Compras.ObtenerConDetallesAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
+        compra.ActualizarPendiente(r.ProveedorId, r.Origen, r.FechaCompra, r.FechaEstimadaLlegada, r.CostoTransporte, r.OtrosCostos, r.Observaciones);
+        compra.LimpiarDetallesPendiente();
+        foreach (var d in r.Detalles) compra.AgregarDetalle(d.ProductoId, d.Cantidad, d.PrecioCompra);
+        await uow.SaveChangesAsync(ct);
+        return compra.ToDto();
     }
 
     public async Task<bool> Handle(RecibirCompraCommand r, CancellationToken ct)
@@ -294,6 +323,7 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
 
 public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUser, PricingService pricing, VentaValidationChain validationChain, EstadoVentaFactory estadoFactory) :
     IRequestHandler<CrearVentaCommand, Guid>,
+    IRequestHandler<ActualizarVentaCommand, VentaDto>,
     IRequestHandler<ConfirmarVentaCommand, VentaDto>,
     IRequestHandler<AnularVentaCommand, bool>
 {
@@ -311,6 +341,22 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         await uow.Ventas.AgregarAsync(venta, ct);
         await uow.SaveChangesAsync(ct);
         return venta.Id;
+    }
+
+    public async Task<VentaDto> Handle(ActualizarVentaCommand r, CancellationToken ct)
+    {
+        if (r.Detalles.Count == 0) throw new InvalidOperationException("La venta debe tener detalle.");
+        var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
+        venta.ActualizarPendiente(r.ClienteId, r.MetodoPago, r.FechaVencimiento, r.Observaciones);
+        venta.LimpiarDetallesPendiente();
+        foreach (var detalle in r.Detalles)
+        {
+            var producto = await uow.Productos.ObtenerPorIdAsync(detalle.ProductoId, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");
+            var precio = detalle.PrecioUnitario ?? pricing.Calcular(detalle.PricingStrategy, producto, detalle.Cantidad, detalle.Descuento);
+            venta.AgregarDetalle(detalle.ProductoId, detalle.Cantidad, precio, detalle.Descuento);
+        }
+        await uow.SaveChangesAsync(ct);
+        return venta.ToDto();
     }
 
     public async Task<VentaDto> Handle(ConfirmarVentaCommand r, CancellationToken ct)
@@ -397,8 +443,9 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
     public async Task<DocumentoDto> Handle(GenerarDocumentoVentaCommand r, CancellationToken ct)
     {
         var usuarioId = currentUser.UserId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
-        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, ct);
+        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
         await uow.AgregarAsync(documento, ct);
         await uow.SaveChangesAsync(ct);
         return documento.ToDto();
@@ -406,8 +453,10 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
 
     public async Task<bool> Handle(EnviarDocumentoVentaCommand r, CancellationToken ct)
     {
+        var usuarioId = currentUser.UserId ?? Guid.Empty;
+        var usuario = usuarioId == Guid.Empty ? null : await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
-        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, currentUser.UserId ?? Guid.Empty, ct);
+        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
         await factory.Crear(r.Tipo).EnviarDocumentoAsync(documento, r.Destino, ct);
         return true;
     }
@@ -420,7 +469,30 @@ public static class MappingExtensions
     public static ProductoDto ToDto(this ProductoMadera x) => new(x.Id, x.NombreComercial, x.TipoMadera, x.UnidadMedida, x.Largo, x.Ancho, x.Espesor, x.Calidad, x.PrecioCompra, x.PrecioVentaSugerido, x.StockMinimo, x.Estado);
     public static InventarioDto ToDto(this Inventario x, ProductoMadera producto) => new(x.Id, x.ProductoMaderaId, producto.NombreComercial, x.StockActual, producto.StockMinimo, x.UbicacionInterna);
     public static TransporteDto ToDto(this Transporte x) => new(x.Id, x.Camion, x.Chofer, x.Placa, x.LugarOrigen, x.FechaSalida, x.FechaLlegada, x.CostoTransporte, x.Estado, x.Observaciones, x.CompraId);
-    public static VentaDto ToDto(this Venta x) => new(x.Id, x.ClienteId, x.Fecha, x.Estado, x.Total, x.MontoPagado, x.SaldoPendiente);
+    public static CompraDto ToDto(this Compra x) => new(
+        x.Id,
+        x.ProveedorId,
+        x.Origen,
+        x.Estado,
+        x.FechaCompra,
+        x.FechaEstimadaLlegada,
+        x.Detalles.Sum(d => d.Cantidad * d.PrecioCompra),
+        x.CostoTransporte,
+        x.OtrosCostos,
+        x.Observaciones,
+        x.Detalles.Select(d => new CompraDetalleDto(d.ProductoMaderaId, d.Cantidad, d.PrecioCompra)).ToList());
+    public static VentaDto ToDto(this Venta x) => new(
+        x.Id,
+        x.ClienteId,
+        x.Fecha,
+        x.Estado,
+        x.MetodoPago,
+        x.FechaVencimiento,
+        x.Observaciones,
+        x.Total,
+        x.MontoPagado,
+        x.SaldoPendiente,
+        x.Detalles.Select(d => new VentaDetalleDto(d.ProductoMaderaId, d.Cantidad, d.PrecioUnitario, d.Descuento)).ToList());
     public static CobroDto ToDto(this Cobro x) => new(x.Id, x.VentaId, x.ClienteId, x.MontoTotal, x.SaldoPendiente, x.Estado, x.FechaVencimiento);
     public static DocumentoDto ToDto(this DocumentoVenta x) => new(x.Id, x.VentaId, x.Tipo, x.Numero, x.RutaArchivo, x.FechaGeneracion);
     public static CajaMovimientoDto ToDto(this CajaMovimiento x) => new(x.Id, x.Fecha, x.Tipo, x.Monto, x.Concepto, x.UsuarioId, x.VentaId, x.PagoId, x.CompraId);

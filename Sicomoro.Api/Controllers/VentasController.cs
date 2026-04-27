@@ -26,6 +26,11 @@ public sealed class VentasController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearVentaCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(new { id = await mediator.Send(command, ct) }));
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = AppRoles.Ventas)]
+    public async Task<ActionResult<ApiResponse<object>>> Put(Guid id, ActualizarVentaRequest request, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new ActualizarVentaCommand(id, request.ClienteId, request.MetodoPago, request.FechaVencimiento, request.Observaciones, request.Detalles), ct)));
+
     [HttpPut("{id:guid}/confirmar")]
     [Authorize(Roles = AppRoles.Ventas)]
     public async Task<ActionResult<ApiResponse<object>>> Confirmar(Guid id, ConfirmarVentaRequest request, CancellationToken ct) =>
@@ -39,3 +44,4 @@ public sealed class VentasController(IMediator mediator) : ControllerBase
 
 public sealed record ConfirmarVentaRequest(decimal MontoPagado);
 public sealed record AnularVentaRequest(string Motivo);
+public sealed record ActualizarVentaRequest(Guid ClienteId, Sicomoro.Domain.Enums.MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, IReadOnlyCollection<Sicomoro.Application.DTOs.VentaDetalleInput> Detalles);

@@ -40,7 +40,14 @@ public sealed class UsuariosController(IMediator mediator) : ControllerBase
         Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioCommand(id), ct)));
 
     [Authorize(Roles = "Administrador")]
+    [HttpPut("{id:guid}/password")]
+    public async Task<ActionResult<ApiResponse<object>>> ResetearPassword(Guid id, ResetearUsuarioPasswordRequest request, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new ResetearUsuarioPasswordCommand(id, request.NuevaPassword), ct)));
+
+    [Authorize(Roles = "Administrador")]
     [HttpDelete]
     public async Task<ActionResult<ApiResponse<object>>> Delete([FromQuery] string email, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioPorEmailCommand(email), ct)));
 }
+
+public sealed record ResetearUsuarioPasswordRequest(string NuevaPassword);

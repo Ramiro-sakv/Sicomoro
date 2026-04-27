@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.0-catalogo";
+const APP_VERSION = "v1.4.1-catalogo-home";
 let deferredInstallPrompt = null;
 
 function shouldUseMobileLayout() {
@@ -119,8 +119,16 @@ function canAccess(view) {
   return visibleViews().some(([id]) => id === view);
 }
 
+function currentPath() {
+  return window.location.pathname.replace(/\/+$/, "") || "/";
+}
+
 function isPublicCatalogRoute() {
-  return window.location.pathname.replace(/\/+$/, "") === "/catalogo";
+  return ["/", "/catalogo"].includes(currentPath());
+}
+
+function isStaffRoute() {
+  return currentPath() === "/personal";
 }
 
 function navigatePath(path) {
@@ -189,9 +197,10 @@ function registerServiceWorker() {
 async function api(path, options = {}) {
   const headers = options.headers || {};
   if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
-  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  if (state.token && !options.skipAuth) headers.Authorization = `Bearer ${state.token}`;
 
-  const response = await fetch(`${normalizeApiBase(state.apiBase)}${path}`, { ...options, headers });
+  const { skipAuth, ...fetchOptions } = options;
+  const response = await fetch(`${normalizeApiBase(state.apiBase)}${path}`, { ...fetchOptions, headers });
   const text = await response.text();
   let payload = null;
 
@@ -234,7 +243,7 @@ async function safeApi(path, fallback = []) {
 }
 
 function setView(view) {
-  if (isPublicCatalogRoute()) window.history.pushState(null, "", "/");
+  if (!isStaffRoute()) window.history.pushState(null, "", "/personal");
   if (!canAccess(view)) view = visibleViews()[0]?.[0] || "perfil";
   state.view = view;
   localStorage.setItem("sicomoro_view", view);
@@ -246,6 +255,7 @@ function logout() {
   state.user = null;
   localStorage.removeItem("sicomoro_token");
   localStorage.removeItem("sicomoro_user");
+  if (!isStaffRoute()) window.history.replaceState(null, "", "/personal");
   render();
 }
 
@@ -548,12 +558,12 @@ function renderLogin() {
         </label>
         <div class="actions">
           <button class="primary" type="submit">Entrar</button>
-          <button class="ghost" type="button" id="publicCatalogBtn">Ver catalogo</button>
+          <button class="ghost" type="button" id="publicCatalogBtn">Ver catalogo publico</button>
         </div>
       </form>
     </main>
   `;
-  document.getElementById("publicCatalogBtn").onclick = () => navigatePath("/catalogo");
+  document.getElementById("publicCatalogBtn").onclick = () => navigatePath("/");
   document.getElementById("loginForm").onsubmit = async event => {
     event.preventDefault();
     const data = formData(event.currentTarget);
@@ -568,6 +578,7 @@ function renderLogin() {
       state.user = auth;
       localStorage.setItem("sicomoro_token", auth.token);
       localStorage.setItem("sicomoro_user", JSON.stringify(auth));
+      if (!isStaffRoute()) window.history.replaceState(null, "", "/personal");
       await loadCommon();
       render();
     }, "Sesion iniciada");
@@ -1619,7 +1630,7 @@ async function renderPublicCatalog() {
   let anuncios = [];
   let error = "";
   try {
-    anuncios = await api("/api/catalogo/publico");
+    anuncios = await api("/api/catalogo/publico", { skipAuth: true });
   } catch (ex) {
     error = ex.message || "No se pudo cargar el catalogo.";
   }
@@ -1634,7 +1645,7 @@ async function renderPublicCatalog() {
           <div>
             <a href="#catalogo">Catalogo</a>
             <a href="#contacto">Contacto</a>
-            <button class="ghost" id="goAdminBtn">Panel trabajadores</button>
+            <button class="ghost" id="goAdminBtn">Personal</button>
           </div>
         </nav>
         <section class="public-hero-content">
@@ -1672,13 +1683,13 @@ async function renderPublicCatalog() {
           <h2>Pregunta por medidas, volumen y entrega</h2>
           <p>Esta pagina muestra lo publicado por la barraca. Para cerrar una venta, coordina con el equipo y registra la operacion en el panel interno.</p>
         </div>
-        <button class="primary" id="publicAdminBtn">Entrar al panel</button>
+        <button class="primary" id="publicAdminBtn">Acceso personal</button>
       </section>
       <footer class="public-footer">Barraca Sicomoro - Documento comercial informativo, sin validez fiscal oficial.</footer>
     </main>
   `;
-  document.getElementById("goAdminBtn").onclick = () => navigatePath("/");
-  document.getElementById("publicAdminBtn").onclick = () => navigatePath("/");
+  document.getElementById("goAdminBtn").onclick = () => navigatePath("/personal");
+  document.getElementById("publicAdminBtn").onclick = () => navigatePath("/personal");
 }
 
 function renderCatalogCard(item) {
@@ -1780,7 +1791,7 @@ function renderPublicidad() {
   `, "Publicidad");
 
   const form = document.getElementById("anuncioForm");
-  document.getElementById("openCatalogBtn").onclick = () => navigatePath("/catalogo");
+  document.getElementById("openCatalogBtn").onclick = () => navigatePath("/");
   document.getElementById("clearAnuncioBtn").onclick = () => {
     form.reset();
     form.elements.id.value = "";

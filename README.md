@@ -1,75 +1,284 @@
-# Sicomoro
+# Sicomoro | Sistema de Gestión y Catálogo para Barracas de Madera
 
-Backend principal para administrar una barraca de madera. Esta base usa .NET 8 Web API, PostgreSQL, EF Core, JWT, Swagger, MediatR, arquitectura por capas y pruebas con xUnit.
+<p align="center">
+  <strong>🌲 Sicomoro</strong><br>
+  Plataforma web/API para inventario, ventas, compras, cobros, documentos y catálogo público de madera.
+</p>
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Ramiro-sakv/Sicomoro)
+<p align="center">
+  <img alt="Estado" src="https://img.shields.io/badge/estado-en%20desarrollo%20funcional-2f6f4f">
+  <img alt=".NET" src="https://img.shields.io/badge/.NET-8.0-512bd4">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-336791">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ed">
+  <img alt="Arquitectura" src="https://img.shields.io/badge/arquitectura-clean%20architecture-1d2522">
+</p>
 
-## Arquitectura
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/Ramiro-sakv/Sicomoro">
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render">
+  </a>
+</p>
 
-- `Sicomoro.Domain`: entidades, enums, eventos, repositorios abstractos, reglas de dominio, Strategy y State.
-- `Sicomoro.Application`: commands, queries, DTOs, validaciones Chain of Responsibility, fachadas/casos de uso vía MediatR.
-- `Sicomoro.Infrastructure`: EF Core, PostgreSQL, repositorios, Unit of Work, JWT, adapters externos, PDF, facturación.
-- `Sicomoro.Api`: controllers, middleware global, Swagger/OpenAPI, JWT, DTOs HTTP.
-- `Sicomoro.Frontend`: SPA HTML/CSS/JS servida por Nginx.
-- `Sicomoro.Tests`: pruebas unitarias de reglas críticas.
+---
 
-## Patrones incluidos
+## Tabla de Contenido
 
-- Strategy: `IPricingStrategy` para precios normal, mayorista, cliente frecuente y descuento manual.
-- State: políticas de estado de venta para impedir acciones inválidas.
-- Factory Method: `IDocumentoFactory` crea proveedor PDF o fiscal futuro.
-- Repository + Unit of Work: acceso a datos y transacciones.
-- Observer: eventos de dominio generan notificaciones.
-- Command/Mediator: controllers envían commands/queries a handlers.
-- Chain of Responsibility: validaciones antes de confirmar ventas.
-- Adapter: email, WhatsApp y facturación electrónica futura.
-- Decorator: retry de email y decorador de documentos.
-- Template Method: generación PDF con encabezado, cliente, detalle, totales y pie.
-- Proxy: reportes sensibles protegidos por rol `Administrador` o `Gerente`.
+- [Descripción](#descripción)
+- [Problema y solución](#problema-y-solución)
+- [Características principales](#características-principales)
+- [Arquitectura del sistema](#arquitectura-del-sistema)
+- [Tecnologías utilizadas](#tecnologías-utilizadas)
+- [Estructura de carpetas](#estructura-de-carpetas)
+- [Instalación local](#instalación-local)
+- [Configuración](#configuración)
+- [Uso del sistema](#uso-del-sistema)
+- [API endpoints](#api-endpoints)
+- [Flujos de negocio](#flujos-de-negocio)
+- [Buenas prácticas aplicadas](#buenas-prácticas-aplicadas)
+- [Despliegue](#despliegue)
+- [Roadmap](#roadmap)
+- [Autor y créditos](#autor-y-créditos)
 
-## Ejecutar
+---
+
+## Descripción
+
+**Sicomoro** es una plataforma para administrar una barraca de madera de forma ordenada, segura y escalable. El sistema permite controlar productos, inventario, compras, proveedores, ventas, clientes, cobros, documentos, caja, reportes y un catálogo público para mostrar madera disponible a clientes.
+
+Está diseñado como un proyecto real de backend profesional, con una API en **.NET 8**, persistencia en **PostgreSQL**, autenticación por **JWT**, arquitectura por capas y separación clara entre dominio, aplicación, infraestructura y presentación.
+
+La aplicación también incluye un frontend web ligero:
+
+- `/` muestra el catálogo público para clientes.
+- `/personal` muestra el acceso interno para trabajadores.
+- La sección `Publicidad` permite administrar lo que se publica en el catálogo.
+
+---
+
+## Problema y Solución
+
+### Problema
+
+Una barraca de madera suele manejar información crítica en cuadernos, hojas de cálculo o mensajes sueltos:
+
+- Stock desactualizado.
+- Ventas sin historial claro.
+- Deudas difíciles de controlar.
+- Compras y transporte sin trazabilidad.
+- Clientes sin historial centralizado.
+- Documentos internos poco estandarizados.
+- Catálogo comercial separado del inventario real.
+
+### Solución
+
+Sicomoro centraliza la operación en un sistema único:
+
+| Área | Cómo ayuda Sicomoro |
+|---|---|
+| Inventario | Controla entradas, salidas, ajustes, pérdidas y stock mínimo. |
+| Ventas | Registra ventas, descuentos, pagos parciales y anulaciones. |
+| Clientes | Mantiene historial de compras, deudas y pagos. |
+| Compras | Registra proveedores, origen, transporte y recepción de madera. |
+| Caja | Ordena ingresos, egresos y movimientos diarios. |
+| Catálogo público | Publica productos destacados para clientes sin exponer el sistema interno. |
+| Auditoría | Registra acciones importantes para trazabilidad. |
+
+---
+
+## Características Principales
+
+### Para operación interna
+
+- Gestión de usuarios con roles.
+- Registro de clientes y proveedores.
+- Catálogo interno de productos de madera.
+- Control de inventario por producto.
+- Compras con recepción automática en inventario.
+- Ventas con validación de stock.
+- Cobros y cuentas por cobrar.
+- Caja para ingresos y egresos.
+- Transporte y recepción de cargas.
+- Reportes operativos.
+- Auditoría de operaciones críticas.
+- Notificaciones internas.
+- Generación de comprobantes PDF internos.
+
+### Para clientes
+
+- Catálogo público en la página inicial.
+- Publicaciones administrables desde el panel interno.
+- Anuncios con imagen, descripción, precio visible y botón de contacto.
+- Vinculación opcional con productos reales del inventario.
+
+---
+
+## Arquitectura del Sistema
+
+Sicomoro usa una arquitectura por capas inspirada en **Clean Architecture**.
+
+```text
+Cliente / Navegador
+        |
+        v
+Sicomoro.Frontend
+        |
+        v
+Sicomoro.Api
+        |
+        v
+Sicomoro.Application
+        |
+        v
+Sicomoro.Domain
+        |
+        v
+Sicomoro.Infrastructure
+        |
+        v
+PostgreSQL
+```
+
+### Capas
+
+| Proyecto | Responsabilidad |
+|---|---|
+| `Sicomoro.Domain` | Entidades, reglas de negocio, enums, eventos y contratos. |
+| `Sicomoro.Application` | Casos de uso, commands, queries, DTOs, validaciones y servicios de aplicación. |
+| `Sicomoro.Infrastructure` | EF Core, PostgreSQL, repositorios, Unit of Work, PDF, adapters externos. |
+| `Sicomoro.Api` | Controllers, JWT, Swagger, middleware de errores y publicación del frontend. |
+| `Sicomoro.Frontend` | SPA HTML/CSS/JS para catálogo público y panel interno. |
+| `Sicomoro.Tests` | Pruebas unitarias de reglas de negocio. |
+
+---
+
+## Tecnologías Utilizadas
+
+| Tecnología | Uso |
+|---|---|
+| C# / .NET 8 | Backend principal y API REST. |
+| ASP.NET Core Web API | Exposición de endpoints HTTP. |
+| Entity Framework Core | ORM para persistencia. |
+| PostgreSQL 16 | Base de datos relacional. |
+| JWT Bearer | Autenticación y autorización. |
+| MediatR | Mediator para desacoplar controllers y casos de uso. |
+| Swagger / OpenAPI | Documentación interactiva de la API. |
+| Docker / Docker Compose | Ejecución local y despliegue reproducible. |
+| xUnit | Pruebas automatizadas. |
+| HTML/CSS/JavaScript | Frontend ligero sin framework pesado. |
+| Render | Despliegue cloud mediante Blueprint. |
+
+---
+
+## Estructura de Carpetas
+
+```text
+Sicomoro/
+├── Sicomoro.Api/
+│   ├── Controllers/
+│   ├── Middlewares/
+│   ├── Security/
+│   └── Program.cs
+├── Sicomoro.Application/
+│   ├── Commands/
+│   ├── Queries/
+│   ├── DTOs/
+│   ├── Interfaces/
+│   └── Validators/
+├── Sicomoro.Domain/
+│   ├── Entities/
+│   ├── Enums/
+│   ├── Events/
+│   ├── DomainServices/
+│   └── Interfaces/
+├── Sicomoro.Infrastructure/
+│   ├── Persistence/
+│   ├── Repositories/
+│   ├── Pdf/
+│   ├── Email/
+│   ├── FileStorage/
+│   └── Facturacion/
+├── Sicomoro.Frontend/
+│   ├── app.js
+│   ├── styles.css
+│   ├── index.html
+│   ├── manifest.webmanifest
+│   └── assets/
+├── Sicomoro.Tests/
+├── docker-compose.yml
+├── render.yaml
+└── README.md
+```
+
+---
+
+## Instalación Local
+
+### Requisitos
+
+- Docker Desktop.
+- Git.
+- Navegador moderno.
+- Opcional para desarrollo backend: .NET SDK 8.
+
+### Ejecutar con Docker Compose
 
 ```powershell
-cd "C:\Users\ramir\OneDrive\Documentos\New project\Sicomoro"
+git clone https://github.com/Ramiro-sakv/Sicomoro.git
+cd Sicomoro
 docker compose up --build
 ```
 
-API: `http://localhost:8080`  
-Swagger: `http://localhost:8080/swagger`
-Frontend: `http://localhost:3000`
+Servicios locales:
 
-Produccion:
+| Servicio | URL |
+|---|---|
+| Aplicación principal | `http://localhost:8080` |
+| Catálogo público | `http://localhost:8080/` |
+| Acceso personal | `http://localhost:8080/personal` |
+| Swagger | `http://localhost:8080/swagger` |
+| PostgreSQL | `localhost:5432` |
 
-```text
-Ver PRODUCCION.md
-```
+### Reiniciar base de datos local
 
-Render:
-
-```text
-El archivo render.yaml esta listo en la raiz del repo.
-Render crea un Web Service Docker llamado sicomoro y una base PostgreSQL llamada sicomoro-db.
-El frontend queda servido por la misma URL del backend.
-```
-
-Flujo esperado:
-
-```text
-1. Subir este proyecto a GitHub.
-2. En Render: New > Blueprint.
-3. Seleccionar el repo.
-4. Render detecta render.yaml.
-5. Deploy Blueprint.
-```
-
-Para reiniciar la base de desarrollo desde cero:
+> Este comando borra los datos locales de Docker.
 
 ```powershell
 docker compose down -v
 docker compose up --build
 ```
 
-Usuario seed:
+---
+
+## Configuración
+
+El sistema usa variables de entorno. En Docker Compose ya vienen valores de desarrollo.
+
+### Variables principales
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `ConnectionStrings__DefaultConnection` | Conexión PostgreSQL. | `Host=postgres;Port=5432;Database=sicomoro;Username=sicomoro;Password=sicomoro123` |
+| `DATABASE_URL` | Conexión usada por Render. | `postgres://...` |
+| `Jwt__Issuer` | Emisor del token JWT. | `Sicomoro` |
+| `Jwt__Key` | Clave privada para firmar tokens. | `cambiar-en-produccion` |
+| `ApplyMigrationsOnStartup` | Aplica migraciones al iniciar. | `true` |
+| `Swagger__Enabled` | Habilita Swagger fuera de desarrollo. | `false` |
+| `WhatsApp__Enabled` | Activa integración WhatsApp Cloud API. | `false` |
+
+### Ejemplo `.env`
+
+```env
+ASPNETCORE_ENVIRONMENT=Development
+ASPNETCORE_URLS=http://+:8080
+ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=sicomoro;Username=sicomoro;Password=sicomoro123
+Jwt__Issuer=Sicomoro
+Jwt__Key=Sicomoro-dev-key-change-this-value-32chars
+ApplyMigrationsOnStartup=true
+Swagger__Enabled=true
+WhatsApp__Enabled=false
+```
+
+### Usuario inicial
 
 ```json
 {
@@ -78,207 +287,183 @@ Usuario seed:
 }
 ```
 
-Usuarios:
+---
 
-- Cada usuario puede editar su perfil en `Mi perfil`.
-- Los administradores ven la seccion `Usuarios`.
-- Para crear usuarios se requiere rol `Administrador` y la clave de creacion `13067264`.
-- Los administradores pueden borrar usuarios, excepto su propia cuenta y el ultimo administrador.
+## Uso del Sistema
 
-## Catalogo publico y publicidad
+### Acceso público
 
-La rama `codex/v1.4-catalogo-publico` agrega una prueba de pagina publica para clientes:
-
-- Pagina publica: `/catalogo`.
-- Gestion interna: seccion `Publicidad`, visible para `Administrador` y `Gerente`.
-- Endpoint publico sin login: `GET /api/catalogo/publico`.
-- Endpoints internos con JWT: `GET/POST/PUT/DELETE /api/catalogo/anuncios`.
-
-Los anuncios pueden vincularse a un producto de madera, mostrar precio visible, imagen, etiqueta, texto del boton y publicarse u ocultarse sin borrar el registro.
-
-## App movil PWA
-
-La rama `codex/v1.2-app-movil` deja preparado Sicomoro como PWA instalable:
-
-- `Sicomoro.Frontend/manifest.webmanifest`: nombre, colores e iconos de instalacion.
-- `Sicomoro.Frontend/service-worker.js`: cachea la pantalla inicial y archivos estaticos.
-- Pantalla `App movil`: instrucciones para Android, iPhone y boton de instalacion cuando el navegador lo permita.
-
-Para probar instalacion real en celular se necesita HTTPS, por ejemplo Render. En `localhost` sirve para validar el frontend, pero algunos celulares no mostraran el boton de instalacion si se abre por IP local sin HTTPS.
-
-## WhatsApp Cloud API
-
-Sicomoro puede enviar alertas al dueño usando WhatsApp Cloud API. No guardes el token en el codigo ni en GitHub; ponlo como variables de entorno en Render.
-
-Variables necesarias:
+Los clientes ingresan a:
 
 ```text
-WhatsApp__Enabled=true
-WhatsApp__ApiVersion=v25.0
-WhatsApp__PhoneNumberId=ID_DEL_NUMERO_DE_META
-WhatsApp__OwnerPhoneNumber=591NUMERO_DEL_DUENO
-WhatsApp__AccessToken=TOKEN_DE_META
+/
 ```
 
-Con el numero de prueba de Meta, primero agrega el numero destinatario en `Para` dentro de `WhatsApp > API Setup`. Luego puedes probar:
+Ahí ven el catálogo de madera publicado por la barraca.
 
-```http
-POST /api/notificaciones/whatsapp-prueba
-Authorization: Bearer TOKEN_JWT
-Content-Type: application/json
+### Acceso del personal
+
+El equipo interno ingresa desde el botón `Personal` o directamente en:
+
+```text
+/personal
 ```
 
-```json
-{
-  "mensaje": "Prueba desde Sicomoro"
-}
+Roles disponibles:
+
+| Rol | Función |
+|---|---|
+| Administrador | Control total del sistema. |
+| Vendedor | Gestión de ventas y clientes. |
+| Inventario | Productos, stock y compras. |
+| Cobrador | Cobros, caja y deudas. |
+| Gerente | Reportes y administración operativa. |
+| Solo lectura | Consulta sin edición. |
+
+### Publicar productos en el catálogo
+
+1. Entrar a `/personal`.
+2. Iniciar sesión como administrador o gerente.
+3. Ir a `Publicidad`.
+4. Crear anuncio.
+5. Vincular producto si corresponde.
+6. Marcar `Publicado en catálogo`.
+7. Ver resultado en `/`.
+
+---
+
+## API Endpoints
+
+### Autenticación
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/auth/login` | Inicia sesión. |
+| `POST` | `/api/auth/register` | Registra usuario con clave autorizada. |
+
+### Clientes
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/clientes` | Lista clientes. |
+| `GET` | `/api/clientes/{id}` | Obtiene cliente. |
+| `POST` | `/api/clientes` | Crea cliente. |
+| `PUT` | `/api/clientes/{id}` | Edita cliente. |
+| `DELETE` | `/api/clientes/{id}` | Inactiva cliente. |
+
+### Productos e inventario
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/productos` | Lista productos. |
+| `POST` | `/api/productos` | Crea producto. |
+| `PUT` | `/api/productos/{id}` | Edita producto. |
+| `DELETE` | `/api/productos/{id}` | Borra producto si no tiene historial. |
+| `GET` | `/api/inventario` | Consulta stock. |
+| `POST` | `/api/inventario/ajuste` | Ajusta inventario. |
+| `GET` | `/api/inventario/movimientos` | Lista movimientos. |
+
+### Compras y ventas
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/compras` | Registra compra. |
+| `PUT` | `/api/compras/{id}/recibir` | Recibe compra y aumenta inventario. |
+| `GET` | `/api/compras` | Lista compras. |
+| `POST` | `/api/ventas` | Crea venta pendiente. |
+| `PUT` | `/api/ventas/{id}/confirmar` | Confirma venta y descuenta stock. |
+| `PUT` | `/api/ventas/{id}/anular` | Anula venta y revierte stock si corresponde. |
+| `GET` | `/api/ventas` | Lista ventas. |
+
+### Cobros, caja y documentos
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/cobros/pagos` | Registra pago. |
+| `GET` | `/api/cobros/deudas` | Lista deudas. |
+| `GET` | `/api/cobros/cliente/{clienteId}` | Deudas de cliente. |
+| `GET` | `/api/caja/movimientos` | Lista caja por rango. |
+| `POST` | `/api/caja/movimientos` | Registra ingreso o egreso. |
+| `POST` | `/api/documentos/venta/{ventaId}/generar` | Genera comprobante PDF. |
+
+### Catálogo público
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| `GET` | `/api/catalogo/publico` | Público | Lista anuncios publicados. |
+| `GET` | `/api/catalogo/anuncios` | Admin/Gerente | Lista todos los anuncios. |
+| `POST` | `/api/catalogo/anuncios` | Admin/Gerente | Crea anuncio. |
+| `PUT` | `/api/catalogo/anuncios/{id}` | Admin/Gerente | Actualiza anuncio. |
+| `DELETE` | `/api/catalogo/anuncios/{id}` | Admin/Gerente | Elimina anuncio. |
+
+---
+
+## Flujos de Negocio
+
+### Flujo 1: Registrar madera comprada
+
+```text
+Proveedor de Beni -> Compra -> Recepción -> Entrada de inventario -> Stock actualizado
 ```
 
-Las alertas automaticas quedan conectadas a venta confirmada, compra recibida, pago registrado, ajuste de inventario y venta anulada. Si WhatsApp falla, la operacion del negocio no se rompe; el error queda en logs.
-
-## Comandos locales
-
-```powershell
-dotnet test Sicomoro.sln
-```
-
-Ruta real del SDK local instalado en esta máquina:
-
-```powershell
-C:\Users\ramir\OneDrive\Documentos\New project\.dotnet_home\.dotnet8\dotnet.exe test Sicomoro.sln
-```
-
-Migraciones:
-
-```powershell
-$env:DOTNET_ROOT="C:\Users\ramir\OneDrive\Documentos\New project\.dotnet_home\.dotnet8"
-$env:PATH="$env:DOTNET_ROOT;$env:PATH"
-dotnet tool install dotnet-ef --tool-path .tools --version 8.0.11
-.\.tools\dotnet-ef.exe database update --project Sicomoro.Infrastructure\Sicomoro.Infrastructure.csproj --startup-project Sicomoro.Api\Sicomoro.Api.csproj
-```
-
-## Flujo de prueba
-
-1. Login:
-
-```http
-POST /api/auth/login
-```
-
-```json
-{
-  "email": "admin@sicomoro.local",
-  "password": "Admin123*"
-}
-```
-
-Usa el token como `Authorization: Bearer {token}`.
-
-2. Crear proveedor de Beni:
-
-```http
-POST /api/proveedores
-```
-
-```json
-{
-  "nombre": "Maderas Beni SRL",
-  "lugarOrigen": "Beni",
-  "telefono": "70000001",
-  "direccion": "Trinidad",
-  "tipoMadera": "Tajibo",
-  "notas": "Proveedor inicial"
-}
-```
-
-3. Crear producto Tajibo 2x4:
-
-```http
-POST /api/productos
-```
-
-```json
-{
-  "nombreComercial": "Tajibo 2x4",
-  "tipoMadera": "Tajibo",
-  "unidadMedida": 1,
-  "largo": 2,
-  "ancho": 4,
-  "espesor": 0,
-  "calidad": "A",
-  "precioCompra": 35,
-  "precioVentaSugerido": 55,
-  "stockMinimo": 10,
-  "observaciones": "Pieza estandar"
-}
-```
-
-4. Registrar compra:
+Ejemplo:
 
 ```http
 POST /api/compras
+Authorization: Bearer TOKEN
+Content-Type: application/json
 ```
 
 ```json
 {
   "proveedorId": "GUID_PROVEEDOR",
   "origen": "Beni",
-  "fechaCompra": "2026-04-25T00:00:00Z",
-  "fechaEstimadaLlegada": "2026-04-30T00:00:00Z",
+  "fechaCompra": "2026-04-27T00:00:00Z",
+  "fechaEstimadaLlegada": "2026-05-02T00:00:00Z",
   "costoTransporte": 1200,
   "otrosCostos": 150,
-  "observaciones": "Carga inicial",
+  "observaciones": "Carga de tajibo seco",
   "detalles": [
     {
       "productoId": "GUID_PRODUCTO",
-      "cantidad": 30,
+      "cantidad": 100,
       "precioCompra": 35
     }
   ]
 }
 ```
 
-5. Recibir compra:
+Al recibir:
 
 ```http
 PUT /api/compras/GUID_COMPRA/recibir
 ```
 
-6. Ver stock:
+Resultado:
 
-```http
-GET /api/inventario
+- La compra cambia a `Recibida`.
+- Se genera movimiento de inventario.
+- Aumenta el stock del producto.
+- Queda auditoría de la operación.
+
+### Flujo 2: Vender madera a cliente
+
+```text
+Cliente -> Venta pendiente -> Confirmación -> Salida de inventario -> Cobro / deuda
 ```
-
-7. Crear cliente:
-
-```http
-POST /api/clientes
-```
-
-```json
-{
-  "nombreRazonSocial": "Constructora Norte",
-  "ciNit": "1234567",
-  "telefono": "70000002",
-  "direccion": "Av. Principal",
-  "ciudad": "Santa Cruz",
-  "notas": "Cliente a credito"
-}
-```
-
-8. Crear venta:
 
 ```http
 POST /api/ventas
+Authorization: Bearer TOKEN
+Content-Type: application/json
 ```
 
 ```json
 {
   "clienteId": "GUID_CLIENTE",
   "metodoPago": 5,
-  "fechaVencimiento": "2026-05-10T00:00:00Z",
-  "observaciones": "Venta a credito parcial",
+  "fechaVencimiento": "2026-05-15T00:00:00Z",
+  "observaciones": "Venta con pago parcial",
   "detalles": [
     {
       "productoId": "GUID_PRODUCTO",
@@ -291,10 +476,11 @@ POST /api/ventas
 }
 ```
 
-9. Confirmar venta con pago parcial:
+Confirmar venta:
 
 ```http
 PUT /api/ventas/GUID_VENTA/confirmar
+Content-Type: application/json
 ```
 
 ```json
@@ -303,141 +489,170 @@ PUT /api/ventas/GUID_VENTA/confirmar
 }
 ```
 
-10. Ver deuda y registrar pago:
+Resultado:
+
+- Se descuenta inventario.
+- Se registra pago inicial.
+- Si queda saldo, se genera cuenta por cobrar.
+- Puede generarse comprobante PDF.
+
+### Flujo 3: Publicar producto para clientes
 
 ```http
-GET /api/cobros/deudas
-POST /api/cobros/pagos
+POST /api/catalogo/anuncios
+Authorization: Bearer TOKEN
+Content-Type: application/json
 ```
 
 ```json
 {
-  "cobroId": "GUID_COBRO",
-  "monto": 200,
-  "metodoPago": 1,
-  "referencia": "Recibo caja"
+  "productoId": "GUID_PRODUCTO",
+  "titulo": "Tajibo 2x4 seco",
+  "subtitulo": "Ideal para estructura y carpintería",
+  "descripcion": "Madera resistente, seleccionada y disponible para entrega.",
+  "imagenUrl": "https://example.com/tajibo.jpg",
+  "precioTexto": "Consultar precio",
+  "etiqueta": "Destacado",
+  "ctaTexto": "Solicitar cotización",
+  "ctaUrl": "#contacto",
+  "orden": 1,
+  "publicado": true
 }
 ```
 
-11. Generar comprobante PDF:
+Luego el cliente lo ve en:
 
-```http
-POST /api/documentos/venta/GUID_VENTA/generar
+```text
+/
 ```
 
-El archivo se guarda en `storage/documentos` o en el volumen `sicomoro_docs` si se ejecuta con Docker.
+---
 
-## Endpoints adicionales
+## Buenas Prácticas Aplicadas
 
-Productos:
+| Práctica | Aplicación en Sicomoro |
+|---|---|
+| SOLID | Separación de responsabilidades entre capas y contratos. |
+| Clean Architecture | El dominio no depende de infraestructura ni API. |
+| Repository Pattern | Acceso a datos encapsulado en repositorios. |
+| Unit of Work | Transacciones consistentes en ventas, compras y cobros. |
+| Mediator | Controllers desacoplados de casos de uso mediante MediatR. |
+| Strategy | Cálculo de precios y descuentos extensible. |
+| State | Validación de estados de venta, compra y cobro. |
+| Factory Method | Creación de documentos internos y futuros documentos fiscales. |
+| Observer | Eventos de dominio para notificaciones y auditoría. |
+| Chain of Responsibility | Validaciones antes de confirmar venta. |
+| Adapter | Integraciones externas como PDF, email, WhatsApp o facturación. |
+| Template Method | Estructura común para documentos PDF. |
 
-```http
-PUT /api/productos/{id}
+### Decisiones técnicas
+
+- **.NET 8**: plataforma estable, robusta y mantenible para backend empresarial.
+- **PostgreSQL**: base relacional confiable para transacciones de negocio.
+- **JWT**: permite separar frontend y backend manteniendo sesiones seguras.
+- **Docker**: facilita desarrollo local y despliegue reproducible.
+- **Frontend ligero**: reduce complejidad para una primera versión operativa.
+- **Catálogo separado del panel interno**: clientes ven productos, trabajadores gestionan operaciones.
+
+---
+
+## Despliegue
+
+El proyecto incluye `render.yaml` para desplegar en Render como Blueprint.
+
+Render crea:
+
+- Web Service Docker `sicomoro`.
+- Base PostgreSQL `sicomoro-db`.
+- Migraciones automáticas al iniciar.
+
+Pasos:
+
+```text
+1. Subir cambios a GitHub.
+2. En Render: New > Blueprint.
+3. Seleccionar el repositorio.
+4. Confirmar render.yaml.
+5. Deploy Blueprint.
 ```
 
-Caja:
+Para producción se recomienda:
 
-```http
-GET /api/caja/movimientos?desde=2026-04-01&hasta=2026-04-30
-POST /api/caja/movimientos
+- Usar `Swagger__Enabled=false`.
+- Usar una clave JWT segura y privada.
+- Activar backups de PostgreSQL.
+- Configurar dominio propio.
+- Revisar roles y permisos antes de dar acceso al personal.
+
+---
+
+## Pruebas
+
+Ejecutar pruebas:
+
+```powershell
+dotnet test Sicomoro.sln
 ```
 
-```json
+Con SDK local específico:
+
+```powershell
+"C:\Users\ramir\OneDrive\Documentos\New project\.dotnet_home\.dotnet8\dotnet.exe" test Sicomoro.sln
+```
+
+Validaciones cubiertas:
+
+- No vender más stock del disponible.
+- No registrar pagos mayores al saldo.
+- Estados de venta válidos.
+- Reglas base de dominio.
+
+---
+
+## Facturación y Documentos
+
+Sicomoro genera comprobantes PDF internos mediante `PdfComprobanteProvider`.
+
+La facturación electrónica oficial queda abstraída detrás de:
+
+```csharp
+public interface IFacturacionProvider
 {
-  "tipo": 2,
-  "monto": 150,
-  "concepto": "Gasto menor"
+    Task<DocumentoVenta> GenerarDocumentoVentaAsync(...);
+    Task EnviarDocumentoAsync(...);
+    Task AnularDocumentoAsync(...);
 }
 ```
 
-Transportes:
+`FacturacionElectronicaProvider` está preparado como extensión futura, pero no simula integración fiscal oficial sin normativa, credenciales y configuración real.
 
-```http
-GET /api/transportes
-POST /api/transportes
-PUT /api/transportes/{id}/estado
-```
+---
 
-```json
-{
-  "camion": "Volvo FH",
-  "chofer": "Juan Perez",
-  "placa": "1234ABC",
-  "lugarOrigen": "Beni",
-  "fechaSalida": "2026-04-25T00:00:00Z",
-  "fechaLlegada": null,
-  "costoTransporte": 1200,
-  "estado": 2,
-  "observaciones": "Traslado desde proveedor",
-  "compraId": "GUID_COMPRA"
-}
-```
+## Roadmap
 
-Auditoria y notificaciones:
+| Prioridad | Mejora |
+|---|---|
+| Alta | Registro de clientes públicos para solicitudes de cotización. |
+| Alta | Pedidos desde catálogo hacia el panel interno. |
+| Alta | Filtros públicos por tipo de madera, medida y disponibilidad. |
+| Media | Panel visual para editar banners y campañas comerciales. |
+| Media | Exportación de reportes a Excel/PDF. |
+| Media | Recuperación de contraseña. |
+| Media | Backups administrados y monitoreo. |
+| Media | Mejoras de permisos por acción específica. |
+| Baja | Integración WhatsApp Cloud API una vez verificado el negocio en Meta. |
+| Baja | Facturación electrónica oficial cuando exista configuración legal completa. |
 
-```http
-GET /api/auditoria?take=100
-GET /api/notificaciones?soloNoLeidas=true
-```
+---
 
-## Validacion ejecutada
+## Autor y Créditos
 
-Se valido por Docker este flujo:
+**Proyecto:** Sicomoro
 
-- Login con admin seed.
-- Crear proveedor de Beni.
-- Crear producto Tajibo 2x4.
-- Registrar compra y recibirla.
-- Ver stock subir a 30.
-- Crear cliente y venta.
-- Confirmar venta con pago inicial.
-- Ver stock bajar a 5 y generar notificacion de bajo stock.
-- Registrar pago parcial y ver saldo pendiente.
-- Generar PDF interno.
-- Consultar auditoria.
+**Propósito:** Sistema de gestión para barraca de madera y catálogo comercial.
 
-## Frontend
+**Autor:** Ramiro Huarachi
 
-El frontend esta hecho sin framework pesado para que sea facil de modificar:
+**Asistencia técnica:** OpenAI Codex
 
-- `Sicomoro.Frontend/index.html`: punto de entrada.
-- `Sicomoro.Frontend/styles.css`: colores, grillas, tablas, formularios y responsive.
-- `Sicomoro.Frontend/app.js`: estado de sesion, llamadas HTTP y pantallas.
-- `Sicomoro.Frontend/Dockerfile`: publica los archivos con Nginx.
-
-Para cambiar una pantalla, busca su funcion en `app.js`:
-
-- `renderClientes`
-- `renderProductos`
-- `renderInventario`
-- `renderCompras`
-- `renderVentas`
-- `renderCobros`
-- `renderCaja`
-- `renderTransportes`
-- `renderDocumentos`
-- `renderReportes`
-
-Cada formulario usa `api("/ruta", { method, body })` contra el backend. El token JWT se guarda en `localStorage` y se envia automaticamente como `Authorization: Bearer`.
-
-Si modificas CSS o JS:
-
-```powershell
-docker compose up -d --build frontend
-```
-
-Si modificas backend:
-
-```powershell
-docker compose up -d --build api
-```
-
-Si modificas ambos:
-
-```powershell
-docker compose up -d --build
-```
-
-## Estado de facturación
-
-`PdfComprobanteProvider` genera un comprobante PDF interno. `FacturacionElectronicaProvider` queda preparado y lanza una excepción explícita hasta contar con normativa, credenciales y configuración oficial.
+Este proyecto fue desarrollado como una base profesional y extensible para operar una barraca real, con enfoque en backend, trazabilidad de negocio y crecimiento futuro.

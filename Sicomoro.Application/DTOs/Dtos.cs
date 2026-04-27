@@ -20,5 +20,6 @@ public sealed record CajaMovimientoDto(Guid Id, DateTime Fecha, TipoCajaMovimien
 public sealed record NotificacionDto(Guid Id, TipoNotificacion Tipo, string Titulo, string Mensaje, Guid? UsuarioId, bool Leida, DateTime CreadoEn);
 public sealed record AuditoriaDto(Guid Id, Guid? UsuarioId, DateTime FechaHora, string Accion, string Entidad, Guid? EntidadId, string? DatosAntes, string? DatosDespues);
 public sealed record UsuarioDto(Guid Id, string Nombre, string Email, RolSistema Rol, EstadoRegistro Estado, string? CiNit, string? Telefono, string? Direccion, string? Cargo, string? Notas);
+public sealed record AnuncioCatalogoDto(Guid Id, Guid? ProductoId, string? Producto, string? TipoMadera, string? UnidadMedida, decimal? StockActual, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado);
 public sealed record ReporteVentasDto(DateTime Desde, DateTime Hasta, int CantidadVentas, decimal TotalVentas, decimal TotalPagado, decimal SaldoPendiente);
 public sealed record ReporteCajaDto(DateTime Desde, DateTime Hasta, decimal Ingresos, decimal Egresos, decimal Saldo);

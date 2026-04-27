@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.3.1";
+const APP_VERSION = "v1.4.0-catalogo";
 let deferredInstallPrompt = null;
 
 function shouldUseMobileLayout() {
@@ -45,6 +45,7 @@ const state = {
     notificaciones: [],
     auditoria: [],
     usuarios: [],
+    catalogoAnuncios: [],
     perfil: null
   }
 };
@@ -62,6 +63,7 @@ const views = [
   ["transportes", "Transportes", [1, 3, 5]],
   ["documentos", "Documentos", [1, 2, 5]],
   ["reportes", "Reportes", [1, 5]],
+  ["publicidad", "Publicidad", [1, 5]],
   ["perfil", "Mi perfil", [1, 2, 3, 4, 5, 6]],
   ["app", "App movil", [1, 2, 3, 4, 5, 6]],
   ["usuarios", "Usuarios", [1]],
@@ -115,6 +117,15 @@ function visibleViews() {
 
 function canAccess(view) {
   return visibleViews().some(([id]) => id === view);
+}
+
+function isPublicCatalogRoute() {
+  return window.location.pathname.replace(/\/+$/, "") === "/catalogo";
+}
+
+function navigatePath(path) {
+  window.history.pushState(null, "", path);
+  render();
 }
 
 function rolLabel(value) {
@@ -223,6 +234,7 @@ async function safeApi(path, fallback = []) {
 }
 
 function setView(view) {
+  if (isPublicCatalogRoute()) window.history.pushState(null, "", "/");
   if (!canAccess(view)) view = visibleViews()[0]?.[0] || "perfil";
   state.view = view;
   localStorage.setItem("sicomoro_view", view);
@@ -536,10 +548,12 @@ function renderLogin() {
         </label>
         <div class="actions">
           <button class="primary" type="submit">Entrar</button>
+          <button class="ghost" type="button" id="publicCatalogBtn">Ver catalogo</button>
         </div>
       </form>
     </main>
   `;
+  document.getElementById("publicCatalogBtn").onclick = () => navigatePath("/catalogo");
   document.getElementById("loginForm").onsubmit = async event => {
     event.preventDefault();
     const data = formData(event.currentTarget);
@@ -599,7 +613,7 @@ function renderShell(content, title) {
 }
 
 async function refreshView() {
-  if (["dashboard", "clientes", "proveedores", "productos", "inventario", "compras", "ventas", "cobros", "documentos", "reportes"].includes(state.view)) {
+  if (["dashboard", "clientes", "proveedores", "productos", "inventario", "compras", "ventas", "cobros", "documentos", "reportes", "publicidad"].includes(state.view)) {
     await loadCommon();
   }
   if (state.view === "transportes") state.cache.transportes = await api("/api/transportes");
@@ -607,9 +621,11 @@ async function refreshView() {
   if (state.view === "auditoria") state.cache.auditoria = await api("/api/auditoria?take=100");
   if (state.view === "perfil") state.cache.perfil = await api("/api/usuarios/me");
   if (state.view === "usuarios" && isAdmin()) state.cache.usuarios = await api("/api/usuarios");
+  if (state.view === "publicidad" && isGestion()) state.cache.catalogoAnuncios = await api("/api/catalogo/anuncios");
 }
 
 async function render() {
+  if (isPublicCatalogRoute()) return renderPublicCatalog();
   if (!state.token) return renderLogin();
   if (!canAccess(state.view)) {
     state.view = visibleViews()[0]?.[0] || "perfil";
@@ -629,6 +645,7 @@ async function render() {
     transportes: renderTransportes,
     documentos: renderDocumentos,
     reportes: renderReportes,
+    publicidad: renderPublicidad,
     perfil: renderPerfil,
     app: renderAppInstall,
     usuarios: renderUsuarios,
@@ -1597,6 +1614,236 @@ function renderAppInstall() {
   };
 }
 
+async function renderPublicCatalog() {
+  syncDeviceLayout();
+  let anuncios = [];
+  let error = "";
+  try {
+    anuncios = await api("/api/catalogo/publico");
+  } catch (ex) {
+    error = ex.message || "No se pudo cargar el catalogo.";
+  }
+
+  const destacados = anuncios.slice(0, 3);
+  const heroBackground = destacados[0]?.imagenUrl || "/assets/catalogo-hero.png";
+  app.innerHTML = `
+    <main class="public-site">
+      <header class="public-hero" style="background-image: linear-gradient(90deg, rgba(15,31,23,.88), rgba(15,31,23,.46)), url('${esc(heroBackground)}')">
+        <nav class="public-nav">
+          <strong>Sicomoro</strong>
+          <div>
+            <a href="#catalogo">Catalogo</a>
+            <a href="#contacto">Contacto</a>
+            <button class="ghost" id="goAdminBtn">Panel trabajadores</button>
+          </div>
+        </nav>
+        <section class="public-hero-content">
+          <span class="catalog-badge">Barraca de madera</span>
+          <h1>Madera seleccionada para obra, carpinteria y proyectos especiales</h1>
+          <p>Consulta disponibilidad, medidas y precios actualizados desde el inventario interno de Sicomoro.</p>
+          <div class="public-actions">
+            <a class="primary public-button" href="#catalogo">Ver maderas</a>
+            <a class="public-button" href="#contacto">Solicitar cotizacion</a>
+          </div>
+        </section>
+      </header>
+
+      <section class="public-section public-intro">
+        <div><span>Compra segura</span><strong>Productos publicados por el equipo de Sicomoro</strong></div>
+        <div><span>Stock visible</span><strong>Disponibilidad conectada al inventario</strong></div>
+        <div><span>Atencion directa</span><strong>Ventas y entregas coordinadas con la barraca</strong></div>
+      </section>
+
+      <section class="public-section" id="catalogo">
+        <div class="public-section-head">
+          <div>
+            <span class="catalog-badge">Catalogo</span>
+            <h2>Maderas destacadas</h2>
+          </div>
+          <p>${anuncios.length ? `${anuncios.length} publicaciones disponibles` : "Todavia no hay publicaciones activas."}</p>
+        </div>
+        ${error ? `<div class="public-empty">${esc(error)}</div>` : ""}
+        ${anuncios.length ? `<div class="catalog-grid">${anuncios.map(item => renderCatalogCard(item)).join("")}</div>` : `<div class="public-empty">El catalogo publico esta listo. Publica anuncios desde el panel interno para que aparezcan aqui.</div>`}
+      </section>
+
+      <section class="public-section public-contact" id="contacto">
+        <div>
+          <span class="catalog-badge">Cotizaciones</span>
+          <h2>Pregunta por medidas, volumen y entrega</h2>
+          <p>Esta pagina muestra lo publicado por la barraca. Para cerrar una venta, coordina con el equipo y registra la operacion en el panel interno.</p>
+        </div>
+        <button class="primary" id="publicAdminBtn">Entrar al panel</button>
+      </section>
+      <footer class="public-footer">Barraca Sicomoro - Documento comercial informativo, sin validez fiscal oficial.</footer>
+    </main>
+  `;
+  document.getElementById("goAdminBtn").onclick = () => navigatePath("/");
+  document.getElementById("publicAdminBtn").onclick = () => navigatePath("/");
+}
+
+function renderCatalogCard(item) {
+  const image = item.imagenUrl || "/assets/catalogo-hero.png";
+  const product = item.producto || "Madera disponible";
+  const stock = item.stockActual == null ? "Consultar stock" : `Stock: ${money(item.stockActual)}`;
+  const detail = [item.tipoMadera, item.unidadMedida].filter(Boolean).join(" / ");
+  const ctaText = item.ctaTexto || "Solicitar cotizacion";
+  const ctaHref = item.ctaUrl || "#contacto";
+  return `
+    <article class="catalog-card">
+      <div class="catalog-card-media" style="background-image: url('${esc(image)}')">
+        ${item.etiqueta ? `<span>${esc(item.etiqueta)}</span>` : ""}
+      </div>
+      <div class="catalog-card-body">
+        <div>
+          <small>${esc(product)}</small>
+          <h3>${esc(item.titulo)}</h3>
+          ${item.subtitulo ? `<strong>${esc(item.subtitulo)}</strong>` : ""}
+        </div>
+        <p>${esc(item.descripcion)}</p>
+        <div class="catalog-meta">
+          <span>${esc(detail || "Medidas a consultar")}</span>
+          <span>${esc(stock)}</span>
+        </div>
+        <div class="catalog-card-foot">
+          <b>${esc(item.precioTexto || "Precio a consultar")}</b>
+          <a href="${esc(ctaHref)}">${esc(ctaText)}</a>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function readAnuncioForm(form) {
+  const data = formData(form);
+  return {
+    productoId: data.productoId || null,
+    titulo: data.titulo,
+    subtitulo: data.subtitulo,
+    descripcion: data.descripcion,
+    imagenUrl: data.imagenUrl,
+    precioTexto: data.precioTexto,
+    etiqueta: data.etiqueta,
+    ctaTexto: data.ctaTexto,
+    ctaUrl: data.ctaUrl,
+    orden: Number(data.orden || 0),
+    publicado: form.elements.publicado.checked
+  };
+}
+
+function renderPublicidad() {
+  const anuncios = state.cache.catalogoAnuncios;
+  renderShell(`
+    <section class="layout">
+      <div class="panel">
+        <div class="panel-header"><h3>Publicar anuncio</h3></div>
+        <div class="panel-body">
+          <form id="anuncioForm" class="grid" autocomplete="off">
+            <input name="id" type="hidden">
+            <label class="full">Producto vinculado<select name="productoId">${entityOptions(productosActivos(), "nombreComercial")}</select></label>
+            <label class="full">Titulo<input name="titulo" placeholder="Tajibo seco 2x4 para estructura" required></label>
+            <label class="full">Subtitulo<input name="subtitulo" placeholder="Ideal para obra fina y carpinteria"></label>
+            <label class="full">Descripcion<textarea name="descripcion" placeholder="Describe calidad, medidas, disponibilidad y uso recomendado." required></textarea></label>
+            <label class="full">Imagen URL<input name="imagenUrl" placeholder="https://..."></label>
+            <label>Precio visible<input name="precioTexto" placeholder="Consultar precio"></label>
+            <label>Etiqueta<input name="etiqueta" placeholder="Nuevo / Oferta / Seco"></label>
+            <label>Texto del boton<input name="ctaTexto" placeholder="Solicitar cotizacion"></label>
+            <label>Link del boton<input name="ctaUrl" placeholder="#contacto o https://..."></label>
+            <label>Orden<input name="orden" type="number" value="0"></label>
+            <label class="checkbox-line"><input name="publicado" type="checkbox"> Publicado en catalogo</label>
+            <div class="actions full">
+              <button class="primary">Guardar anuncio</button>
+              <button type="button" id="clearAnuncioBtn">Limpiar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Anuncios del catalogo</h3>
+          <button id="openCatalogBtn">Ver pagina publica</button>
+        </div>
+        ${table([
+          { label: "Titulo", key: "titulo" },
+          { label: "Producto", render: x => x.producto || "-" },
+          { label: "Precio", render: x => x.precioTexto || "Consultar" },
+          { label: "Orden", key: "orden" },
+          { label: "Estado", render: x => x.publicado ? badge("Publicado") : badge("Oculto", "warn") }
+        ], anuncios, row => `
+          <div class="split-actions">
+            <button data-edit-anuncio="${row.id}">Editar</button>
+            <button data-toggle-anuncio="${row.id}">${row.publicado ? "Ocultar" : "Publicar"}</button>
+            <button class="danger" data-delete-anuncio="${row.id}">Borrar</button>
+          </div>
+        `)}
+      </div>
+    </section>
+  `, "Publicidad");
+
+  const form = document.getElementById("anuncioForm");
+  document.getElementById("openCatalogBtn").onclick = () => navigatePath("/catalogo");
+  document.getElementById("clearAnuncioBtn").onclick = () => {
+    form.reset();
+    form.elements.id.value = "";
+    form.elements.orden.value = "0";
+  };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const data = readAnuncioForm(form);
+    const id = form.elements.id.value;
+    await safe(async () => {
+      await api(id ? `/api/catalogo/anuncios/${id}` : "/api/catalogo/anuncios", {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify(data)
+      });
+      state.cache.catalogoAnuncios = await api("/api/catalogo/anuncios");
+      render();
+    }, id ? "Anuncio actualizado" : "Anuncio creado");
+  };
+
+  document.querySelectorAll("[data-edit-anuncio]").forEach(btn => btn.onclick = () => {
+    const item = anuncios.find(x => x.id === btn.dataset.editAnuncio);
+    if (!item) return;
+    fillForm(form, {
+      id: item.id,
+      productoId: item.productoId,
+      titulo: item.titulo,
+      subtitulo: item.subtitulo,
+      descripcion: item.descripcion,
+      imagenUrl: item.imagenUrl,
+      precioTexto: item.precioTexto,
+      etiqueta: item.etiqueta,
+      ctaTexto: item.ctaTexto,
+      ctaUrl: item.ctaUrl,
+      orden: item.orden
+    });
+    form.elements.publicado.checked = Boolean(item.publicado);
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.querySelectorAll("[data-toggle-anuncio]").forEach(btn => btn.onclick = async () => {
+    const item = anuncios.find(x => x.id === btn.dataset.toggleAnuncio);
+    if (!item) return;
+    await safe(async () => {
+      await api(`/api/catalogo/anuncios/${item.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ ...item, publicado: !item.publicado })
+      });
+      state.cache.catalogoAnuncios = await api("/api/catalogo/anuncios");
+      render();
+    }, item.publicado ? "Anuncio ocultado" : "Anuncio publicado");
+  });
+
+  document.querySelectorAll("[data-delete-anuncio]").forEach(btn => btn.onclick = async () => {
+    const item = anuncios.find(x => x.id === btn.dataset.deleteAnuncio);
+    if (!confirm(`Borrar anuncio ${item?.titulo || ""}?`)) return;
+    await safe(async () => {
+      await api(`/api/catalogo/anuncios/${btn.dataset.deleteAnuncio}`, { method: "DELETE" });
+      state.cache.catalogoAnuncios = await api("/api/catalogo/anuncios");
+      render();
+    }, "Anuncio eliminado");
+  });
+}
+
 function renderUsuarios() {
   renderShell(`
     <section class="layout">
@@ -1734,5 +1981,6 @@ function toIsoDate(value) {
   return value ? `${value}T00:00:00Z` : null;
 }
 
+window.addEventListener("popstate", () => render());
 registerServiceWorker();
 render();

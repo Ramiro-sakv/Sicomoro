@@ -62,6 +62,62 @@ namespace Sicomoro.Infrastructure.Persistence.Migrations
                     b.ToTable("Auditoria");
                 });
 
+            modelBuilder.Entity("Sicomoro.Domain.Entities.AnuncioCatalogo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ActualizadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CtaTexto")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CtaUrl")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Etiqueta")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImagenUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PrecioTexto")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ProductoMaderaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Publicado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Subtitulo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoMaderaId");
+
+                    b.HasIndex("Publicado", "Orden");
+
+                    b.ToTable("AnunciosCatalogo");
+                });
+
             modelBuilder.Entity("Sicomoro.Domain.Entities.CajaMovimiento", b =>
                 {
                     b.Property<Guid>("Id")
@@ -906,6 +962,16 @@ namespace Sicomoro.Infrastructure.Persistence.Migrations
                     b.HasIndex("VentaId");
 
                     b.ToTable("VentaDetalles");
+                });
+
+            modelBuilder.Entity("Sicomoro.Domain.Entities.AnuncioCatalogo", b =>
+                {
+                    b.HasOne("Sicomoro.Domain.Entities.ProductoMadera", "ProductoMadera")
+                        .WithMany()
+                        .HasForeignKey("ProductoMaderaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ProductoMadera");
                 });
 
             modelBuilder.Entity("Sicomoro.Domain.Entities.Cobro", b =>

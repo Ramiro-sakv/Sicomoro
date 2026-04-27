@@ -28,6 +28,7 @@ public sealed record ReporteVentasQuery(DateTime Desde, DateTime Hasta) : IReque
 public sealed record ReporteInventarioBajoQuery : IRequest<List<InventarioDto>>;
 public sealed record ReporteClientesDeudoresQuery : IRequest<List<ClienteDto>>;
 public sealed record ReporteCajaQuery(DateTime Desde, DateTime Hasta) : IRequest<ReporteCajaDto>;
+public sealed record ListarAnunciosCatalogoQuery(bool SoloPublicados) : IRequest<List<AnuncioCatalogoDto>>;
 
 public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUser) :
     IRequestHandler<ListarClientesQuery, List<ClienteDto>>,
@@ -50,7 +51,8 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
     IRequestHandler<ReporteVentasQuery, ReporteVentasDto>,
     IRequestHandler<ReporteInventarioBajoQuery, List<InventarioDto>>,
     IRequestHandler<ReporteClientesDeudoresQuery, List<ClienteDto>>,
-    IRequestHandler<ReporteCajaQuery, ReporteCajaDto>
+    IRequestHandler<ReporteCajaQuery, ReporteCajaDto>,
+    IRequestHandler<ListarAnunciosCatalogoQuery, List<AnuncioCatalogoDto>>
 {
     public async Task<List<ClienteDto>> Handle(ListarClientesQuery r, CancellationToken ct)
     {
@@ -138,5 +140,14 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         var ingresos = movimientos.Where(x => x.Tipo == TipoCajaMovimiento.Ingreso).Sum(x => x.Monto);
         var egresos = movimientos.Where(x => x.Tipo == TipoCajaMovimiento.Egreso).Sum(x => x.Monto);
         return new ReporteCajaDto(r.Desde, r.Hasta, ingresos, egresos, ingresos - egresos);
+    }
+
+    public async Task<List<AnuncioCatalogoDto>> Handle(ListarAnunciosCatalogoQuery r, CancellationToken ct)
+    {
+        var anuncios = r.SoloPublicados
+            ? await uow.AnunciosCatalogo.ListarPublicadosAsync(ct)
+            : await uow.AnunciosCatalogo.ListarGestionAsync(ct);
+        var inventario = await uow.Inventario.ListarAsync(ct);
+        return anuncios.Select(x => x.ToDto(inventario.FirstOrDefault(i => i.ProductoMaderaId == x.ProductoMaderaId))).ToList();
     }
 }

@@ -40,6 +40,9 @@ public sealed record RegistrarPagoCommand(Guid CobroId, decimal Monto, MetodoPag
 public sealed record RegistrarCajaMovimientoCommand(TipoCajaMovimiento Tipo, decimal Monto, string Concepto, Guid? CompraId = null) : IRequest<CajaMovimientoDto>;
 public sealed record GenerarDocumentoVentaCommand(Guid VentaId, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<DocumentoDto>;
 public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<bool>;
+public sealed record CrearAnuncioCatalogoCommand(Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
+public sealed record ActualizarAnuncioCatalogoCommand(Guid Id, Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
+public sealed record EliminarAnuncioCatalogoCommand(Guid Id) : IRequest<bool>;
 
 public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICurrentUserService currentUser, IPasswordHasher hasher, IUserCreationKeyValidator creationKeyValidator) :
     IRequestHandler<LoginCommand, AuthResponse>,
@@ -455,6 +458,55 @@ public sealed class CajaHandler(IUnitOfWork uow, ICurrentUserService currentUser
     }
 }
 
+public sealed class CatalogoPublicoHandlers(IUnitOfWork uow) :
+    IRequestHandler<CrearAnuncioCatalogoCommand, AnuncioCatalogoDto>,
+    IRequestHandler<ActualizarAnuncioCatalogoCommand, AnuncioCatalogoDto>,
+    IRequestHandler<EliminarAnuncioCatalogoCommand, bool>
+{
+    public async Task<AnuncioCatalogoDto> Handle(CrearAnuncioCatalogoCommand r, CancellationToken ct)
+    {
+        ValidarAnuncio(r.Titulo, r.Descripcion);
+        await ValidarProductoAsync(r.ProductoId, ct);
+        var anuncio = new AnuncioCatalogo(r.ProductoId, r.Titulo, r.Subtitulo, r.Descripcion, r.ImagenUrl, r.PrecioTexto, r.Etiqueta, r.CtaTexto, r.CtaUrl, r.Orden, r.Publicado);
+        await uow.AnunciosCatalogo.AgregarAsync(anuncio, ct);
+        await uow.SaveChangesAsync(ct);
+        var inventario = r.ProductoId is null ? null : await uow.Inventario.ObtenerPorProductoAsync(r.ProductoId.Value, ct);
+        return anuncio.ToDto(inventario);
+    }
+
+    public async Task<AnuncioCatalogoDto> Handle(ActualizarAnuncioCatalogoCommand r, CancellationToken ct)
+    {
+        ValidarAnuncio(r.Titulo, r.Descripcion);
+        await ValidarProductoAsync(r.ProductoId, ct);
+        var anuncio = await uow.AnunciosCatalogo.ObtenerConProductoAsync(r.Id, ct) ?? throw new KeyNotFoundException("Anuncio no encontrado.");
+        anuncio.Actualizar(r.ProductoId, r.Titulo, r.Subtitulo, r.Descripcion, r.ImagenUrl, r.PrecioTexto, r.Etiqueta, r.CtaTexto, r.CtaUrl, r.Orden, r.Publicado);
+        await uow.SaveChangesAsync(ct);
+        var inventario = r.ProductoId is null ? null : await uow.Inventario.ObtenerPorProductoAsync(r.ProductoId.Value, ct);
+        return anuncio.ToDto(inventario);
+    }
+
+    public async Task<bool> Handle(EliminarAnuncioCatalogoCommand r, CancellationToken ct)
+    {
+        var anuncio = await uow.AnunciosCatalogo.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Anuncio no encontrado.");
+        uow.AnunciosCatalogo.Eliminar(anuncio);
+        await uow.SaveChangesAsync(ct);
+        return true;
+    }
+
+    private async Task ValidarProductoAsync(Guid? productoId, CancellationToken ct)
+    {
+        if (productoId is null) return;
+        if (await uow.Productos.ObtenerPorIdAsync(productoId.Value, ct) is null)
+            throw new KeyNotFoundException("Producto no encontrado para el anuncio.");
+    }
+
+    private static void ValidarAnuncio(string titulo, string descripcion)
+    {
+        if (string.IsNullOrWhiteSpace(titulo)) throw new InvalidOperationException("El titulo del anuncio es obligatorio.");
+        if (string.IsNullOrWhiteSpace(descripcion)) throw new InvalidOperationException("La descripcion del anuncio es obligatoria.");
+    }
+}
+
 public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService currentUser, IDocumentoFactory factory) :
     IRequestHandler<GenerarDocumentoVentaCommand, DocumentoDto>,
     IRequestHandler<EnviarDocumentoVentaCommand, bool>
@@ -518,4 +570,5 @@ public static class MappingExtensions
     public static NotificacionDto ToDto(this Notificacion x) => new(x.Id, x.Tipo, x.Titulo, x.Mensaje, x.UsuarioId, x.Leida, x.CreadoEn);
     public static AuditoriaDto ToDto(this Auditoria x) => new(x.Id, x.UsuarioId, x.FechaHora, x.Accion, x.Entidad, x.EntidadId, x.DatosAntes, x.DatosDespues);
     public static UsuarioDto ToDto(this Usuario x) => new(x.Id, x.Nombre, x.Email, x.Rol, x.Estado, x.CiNit, x.Telefono, x.Direccion, x.Cargo, x.Notas);
+    public static AnuncioCatalogoDto ToDto(this AnuncioCatalogo x, Inventario? inventario) => new(x.Id, x.ProductoMaderaId, x.ProductoMadera?.NombreComercial, x.ProductoMadera?.TipoMadera, x.ProductoMadera?.UnidadMedida.ToString(), inventario?.StockActual, x.Titulo, x.Subtitulo, x.Descripcion, x.ImagenUrl, x.PrecioTexto, x.Etiqueta, x.CtaTexto, x.CtaUrl, x.Orden, x.Publicado);
 }

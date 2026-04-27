@@ -137,6 +137,20 @@ public sealed class AuditoriaRepository(SicomoroDbContext db) : Repository<Audit
         Db.Auditoria.AsNoTracking().OrderByDescending(x => x.FechaHora).Take(take).ToListAsync(cancellationToken);
 }
 
+public sealed class AnuncioCatalogoRepository(SicomoroDbContext db) : Repository<AnuncioCatalogo>(db), IAnuncioCatalogoRepository
+{
+    public Task<List<AnuncioCatalogo>> ListarGestionAsync(CancellationToken cancellationToken = default) =>
+        Db.AnunciosCatalogo.Include(x => x.ProductoMadera).AsNoTracking().OrderBy(x => x.Orden).ThenBy(x => x.Titulo).ToListAsync(cancellationToken);
+
+    public Task<List<AnuncioCatalogo>> ListarPublicadosAsync(CancellationToken cancellationToken = default) =>
+        Db.AnunciosCatalogo.Include(x => x.ProductoMadera).AsNoTracking().Where(x => x.Publicado).OrderBy(x => x.Orden).ThenBy(x => x.Titulo).ToListAsync(cancellationToken);
+
+    public Task<AnuncioCatalogo?> ObtenerConProductoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Db.AnunciosCatalogo.Include(x => x.ProductoMadera).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    public void Eliminar(AnuncioCatalogo anuncio) => Db.AnunciosCatalogo.Remove(anuncio);
+}
+
 public sealed class UnitOfWork(SicomoroDbContext db) : IUnitOfWork
 {
     public IClienteRepository Clientes { get; } = new ClienteRepository(db);
@@ -151,6 +165,7 @@ public sealed class UnitOfWork(SicomoroDbContext db) : IUnitOfWork
     public IUsuarioRepository Usuarios { get; } = new UsuarioRepository(db);
     public INotificacionRepository Notificaciones { get; } = new NotificacionRepository(db);
     public IAuditoriaRepository Auditoria { get; } = new AuditoriaRepository(db);
+    public IAnuncioCatalogoRepository AnunciosCatalogo { get; } = new AnuncioCatalogoRepository(db);
 
     public Task AgregarAsync<T>(T entity, CancellationToken cancellationToken = default) where T : EntidadBase =>
         db.Set<T>().AddAsync(entity, cancellationToken).AsTask();

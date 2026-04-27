@@ -593,6 +593,54 @@ public sealed class Notificacion : EntidadBase
     public bool Leida { get; private set; }
 }
 
+public sealed class AnuncioCatalogo : EntidadBase
+{
+    private AnuncioCatalogo() { }
+    public AnuncioCatalogo(Guid? productoMaderaId, string titulo, string? subtitulo, string descripcion, string? imagenUrl, string? precioTexto, string? etiqueta, string? ctaTexto, string? ctaUrl, int orden, bool publicado)
+    {
+        ProductoMaderaId = productoMaderaId;
+        Titulo = titulo.Trim();
+        Subtitulo = subtitulo;
+        Descripcion = descripcion.Trim();
+        ImagenUrl = imagenUrl;
+        PrecioTexto = precioTexto;
+        Etiqueta = etiqueta;
+        CtaTexto = ctaTexto;
+        CtaUrl = ctaUrl;
+        Orden = orden;
+        Publicado = publicado;
+    }
+
+    public Guid? ProductoMaderaId { get; private set; }
+    public ProductoMadera? ProductoMadera { get; private set; }
+    public string Titulo { get; private set; } = string.Empty;
+    public string? Subtitulo { get; private set; }
+    public string Descripcion { get; private set; } = string.Empty;
+    public string? ImagenUrl { get; private set; }
+    public string? PrecioTexto { get; private set; }
+    public string? Etiqueta { get; private set; }
+    public string? CtaTexto { get; private set; }
+    public string? CtaUrl { get; private set; }
+    public int Orden { get; private set; }
+    public bool Publicado { get; private set; }
+
+    public void Actualizar(Guid? productoMaderaId, string titulo, string? subtitulo, string descripcion, string? imagenUrl, string? precioTexto, string? etiqueta, string? ctaTexto, string? ctaUrl, int orden, bool publicado)
+    {
+        ProductoMaderaId = productoMaderaId;
+        Titulo = titulo.Trim();
+        Subtitulo = subtitulo;
+        Descripcion = descripcion.Trim();
+        ImagenUrl = imagenUrl;
+        PrecioTexto = precioTexto;
+        Etiqueta = etiqueta;
+        CtaTexto = ctaTexto;
+        CtaUrl = ctaUrl;
+        Orden = orden;
+        Publicado = publicado;
+        MarcarActualizado();
+    }
+}
+
 public sealed class Auditoria : EntidadBase
 {
     private Auditoria() { }

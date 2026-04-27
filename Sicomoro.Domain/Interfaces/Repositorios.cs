@@ -65,6 +65,14 @@ public interface IAuditoriaRepository : IRepository<Auditoria>
     Task<List<Auditoria>> ListarRecienteAsync(int take, CancellationToken cancellationToken = default);
 }
 
+public interface IAnuncioCatalogoRepository : IRepository<AnuncioCatalogo>
+{
+    Task<List<AnuncioCatalogo>> ListarGestionAsync(CancellationToken cancellationToken = default);
+    Task<List<AnuncioCatalogo>> ListarPublicadosAsync(CancellationToken cancellationToken = default);
+    Task<AnuncioCatalogo?> ObtenerConProductoAsync(Guid id, CancellationToken cancellationToken = default);
+    void Eliminar(AnuncioCatalogo anuncio);
+}
+
 public interface IUsuarioRepository : IRepository<Usuario>
 {
     Task<Usuario?> ObtenerPorEmailAsync(string email, CancellationToken cancellationToken = default);
@@ -86,6 +94,7 @@ public interface IUnitOfWork
     IUsuarioRepository Usuarios { get; }
     INotificacionRepository Notificaciones { get; }
     IAuditoriaRepository Auditoria { get; }
+    IAnuncioCatalogoRepository AnunciosCatalogo { get; }
     Task AgregarAsync<T>(T entity, CancellationToken cancellationToken = default) where T : EntidadBase;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<IAppTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);

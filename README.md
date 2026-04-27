@@ -85,6 +85,17 @@ Usuarios:
 - Para crear usuarios se requiere rol `Administrador` y la clave de creacion `13067264`.
 - Los administradores pueden borrar usuarios, excepto su propia cuenta y el ultimo administrador.
 
+## Catalogo publico y publicidad
+
+La rama `codex/v1.4-catalogo-publico` agrega una prueba de pagina publica para clientes:
+
+- Pagina publica: `/catalogo`.
+- Gestion interna: seccion `Publicidad`, visible para `Administrador` y `Gerente`.
+- Endpoint publico sin login: `GET /api/catalogo/publico`.
+- Endpoints internos con JWT: `GET/POST/PUT/DELETE /api/catalogo/anuncios`.
+
+Los anuncios pueden vincularse a un producto de madera, mostrar precio visible, imagen, etiqueta, texto del boton y publicarse u ocultarse sin borrar el registro.
+
 ## App movil PWA
 
 La rama `codex/v1.2-app-movil` deja preparado Sicomoro como PWA instalable:

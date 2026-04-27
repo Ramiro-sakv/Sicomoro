@@ -11,6 +11,8 @@ namespace Sicomoro.Application.Commands;
 
 public sealed record LoginCommand(string Email, string Password) : IRequest<AuthResponse>;
 public sealed record RegisterCommand(string Nombre, string Email, string Password, RolSistema Rol, string? ClaveCreacion = null, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<AuthResponse>;
+public sealed record LoginClientePortalCommand(string Email, string Password) : IRequest<AuthResponse>;
+public sealed record RegistrarClientePortalCommand(string Nombre, string Email, string Password, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Ciudad = null) : IRequest<AuthResponse>;
 public sealed record CrearUsuarioCommand(string Nombre, string Email, string Password, RolSistema Rol, string ClaveCreacion, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<UsuarioDto>;
 public sealed record EliminarUsuarioPorEmailCommand(string Email) : IRequest<bool>;
 public sealed record EliminarUsuarioCommand(Guid Id) : IRequest<bool>;
@@ -47,6 +49,8 @@ public sealed record EliminarAnuncioCatalogoCommand(Guid Id) : IRequest<bool>;
 public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICurrentUserService currentUser, IPasswordHasher hasher, IUserCreationKeyValidator creationKeyValidator) :
     IRequestHandler<LoginCommand, AuthResponse>,
     IRequestHandler<RegisterCommand, AuthResponse>,
+    IRequestHandler<LoginClientePortalCommand, AuthResponse>,
+    IRequestHandler<RegistrarClientePortalCommand, AuthResponse>,
     IRequestHandler<CrearUsuarioCommand, UsuarioDto>,
     IRequestHandler<EliminarUsuarioPorEmailCommand, bool>,
     IRequestHandler<EliminarUsuarioCommand, bool>,
@@ -63,6 +67,36 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
             throw new UnauthorizedAccessException("Clave de creacion de usuario invalida.");
 
         return authService.RegisterAsync(request.Nombre, request.Email, request.Password, request.Rol, request.CiNit, request.Telefono, request.Direccion, request.Cargo, request.Notas, cancellationToken);
+    }
+
+    public async Task<AuthResponse> Handle(LoginClientePortalCommand request, CancellationToken cancellationToken)
+    {
+        var auth = await authService.LoginAsync(request.Email, request.Password, cancellationToken);
+        if (auth.Rol != RolSistema.SoloLectura)
+            throw new UnauthorizedAccessException("Esta cuenta pertenece al personal. Usa el acceso interno.");
+        return auth;
+    }
+
+    public async Task<AuthResponse> Handle(RegistrarClientePortalCommand request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Nombre))
+            throw new InvalidOperationException("El nombre del cliente es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new InvalidOperationException("El email es obligatorio.");
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+            throw new InvalidOperationException("La contrasena debe tener al menos 8 caracteres.");
+        if (await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken) is not null)
+            throw new InvalidOperationException("El email ya esta registrado.");
+
+        await using var tx = await uow.BeginTransactionAsync(cancellationToken);
+        var usuario = new Usuario(request.Nombre, request.Email, hasher.Hash(request.Password), RolSistema.SoloLectura, request.CiNit, request.Telefono, request.Direccion, "Cliente", "Cuenta creada desde catalogo publico.");
+        var cliente = new Cliente(request.Nombre, request.CiNit, request.Telefono, request.Direccion, request.Ciudad, $"Cuenta portal: {request.Email.Trim().ToLowerInvariant()}");
+        await uow.Usuarios.AgregarAsync(usuario, cancellationToken);
+        await uow.Clientes.AgregarAsync(cliente, cancellationToken);
+        await uow.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return await authService.LoginAsync(request.Email, request.Password, cancellationToken);
     }
 
     public async Task<UsuarioDto> Handle(CrearUsuarioCommand request, CancellationToken cancellationToken)

@@ -38,6 +38,8 @@ services:
       - sicomoro_docs:/app/storage/documentos
 
   frontend:
+    profiles:
+      - separate-frontend
     build:
       context: ./Sicomoro.Frontend
     container_name: sicomoro-frontend

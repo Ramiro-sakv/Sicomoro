@@ -52,6 +52,7 @@ La aplicación también incluye un frontend web ligero:
 - `/` muestra el catálogo público para clientes.
 - `/personal` muestra el acceso interno para trabajadores.
 - La sección `Publicidad` permite administrar lo que se publica en el catálogo.
+- Los clientes pueden crear una cuenta básica desde el catálogo para futuras cotizaciones.
 
 ---
 
@@ -238,6 +239,12 @@ Servicios locales:
 | Swagger | `http://localhost:8080/swagger` |
 | PostgreSQL | `localhost:5432` |
 
+El servicio `frontend` con Nginx queda como perfil opcional. La aplicación principal ya sirve el frontend desde la API, por eso el comando normal no necesita descargar la imagen de Nginx.
+
+```powershell
+docker compose --profile separate-frontend up --build
+```
+
 ### Reiniciar base de datos local
 
 > Este comando borra los datos locales de Docker.
@@ -301,6 +308,8 @@ Los clientes ingresan a:
 
 Ahí ven el catálogo de madera publicado por la barraca.
 
+Desde la misma pantalla pueden crear una cuenta cliente o iniciar sesión como cliente. Estas cuentas no tienen acceso al panel interno.
+
 ### Acceso del personal
 
 El equipo interno ingresa desde el botón `Personal` o directamente en:
@@ -340,6 +349,13 @@ Roles disponibles:
 |---|---|---|
 | `POST` | `/api/auth/login` | Inicia sesión. |
 | `POST` | `/api/auth/register` | Registra usuario con clave autorizada. |
+
+### Portal de clientes
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/clientes-portal/register` | Crea una cuenta pública de cliente. |
+| `POST` | `/api/clientes-portal/login` | Inicia sesión como cliente. |
 
 ### Clientes
 

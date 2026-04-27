@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.1-catalogo-home";
+const APP_VERSION = "v1.4.2-catalogo-clientes";
 let deferredInstallPrompt = null;
 
 function shouldUseMobileLayout() {
@@ -25,8 +25,10 @@ function normalizeApiBase(value) {
 const app = document.getElementById("app");
 const state = {
   apiBase: normalizeApiBase(localStorage.getItem("sicomoro_api") || API_DEFAULT),
-  token: localStorage.getItem("sicomoro_token") || "",
-  user: JSON.parse(localStorage.getItem("sicomoro_user") || "null"),
+  token: "",
+  user: null,
+  clientToken: localStorage.getItem("sicomoro_client_token") || "",
+  clientUser: JSON.parse(localStorage.getItem("sicomoro_client_user") || "null"),
   view: localStorage.getItem("sicomoro_view") || "dashboard",
   dashboardRange: localStorage.getItem("sicomoro_dashboard_range") || "mes",
   search: {},
@@ -134,6 +136,19 @@ function isStaffRoute() {
 function navigatePath(path) {
   window.history.pushState(null, "", path);
   render();
+}
+
+function navigateStaffLogin() {
+  state.token = "";
+  state.user = null;
+  localStorage.removeItem("sicomoro_token");
+  localStorage.removeItem("sicomoro_user");
+  navigatePath("/personal");
+}
+
+function authRole(auth) {
+  if (typeof auth?.rol === "number") return auth.rol;
+  return (roles.find(([, label]) => label === auth?.rol) || [6])[0];
 }
 
 function rolLabel(value) {
@@ -574,10 +589,11 @@ function renderLogin() {
         method: "POST",
         body: JSON.stringify({ email: data.email, password: data.password })
       });
+      if (authRole(auth) === 6) {
+        throw new Error("Esta cuenta es de cliente. Usa el acceso de clientes en el catalogo publico.");
+      }
       state.token = auth.token;
       state.user = auth;
-      localStorage.setItem("sicomoro_token", auth.token);
-      localStorage.setItem("sicomoro_user", JSON.stringify(auth));
       if (!isStaffRoute()) window.history.replaceState(null, "", "/personal");
       await loadCommon();
       render();
@@ -1645,17 +1661,21 @@ async function renderPublicCatalog() {
           <div>
             <a href="#catalogo">Catalogo</a>
             <a href="#contacto">Contacto</a>
+            ${state.clientUser ? `<button class="ghost" id="clientLogoutBtn">Salir cliente</button>` : `<a href="#clientes">Clientes</a>`}
             <button class="ghost" id="goAdminBtn">Personal</button>
           </div>
         </nav>
-        <section class="public-hero-content">
-          <span class="catalog-badge">Barraca de madera</span>
-          <h1>Madera seleccionada para obra, carpinteria y proyectos especiales</h1>
-          <p>Consulta disponibilidad, medidas y precios actualizados desde el inventario interno de Sicomoro.</p>
-          <div class="public-actions">
-            <a class="primary public-button" href="#catalogo">Ver maderas</a>
-            <a class="public-button" href="#contacto">Solicitar cotizacion</a>
+        <section class="public-hero-content public-hero-grid">
+          <div class="public-hero-copy">
+            <span class="catalog-badge">Barraca de madera</span>
+            <h1>Madera seleccionada para obra, carpinteria y proyectos especiales</h1>
+            <p>Consulta disponibilidad, medidas y precios actualizados desde el inventario interno de Sicomoro.</p>
+            <div class="public-actions">
+              <a class="primary public-button" href="#catalogo">Ver maderas</a>
+              <a class="public-button" href="#contacto">Solicitar cotizacion</a>
+            </div>
           </div>
+          ${renderClientAccessCard()}
         </section>
       </header>
 
@@ -1688,8 +1708,104 @@ async function renderPublicCatalog() {
       <footer class="public-footer">Barraca Sicomoro - Documento comercial informativo, sin validez fiscal oficial.</footer>
     </main>
   `;
-  document.getElementById("goAdminBtn").onclick = () => navigatePath("/personal");
-  document.getElementById("publicAdminBtn").onclick = () => navigatePath("/personal");
+  document.getElementById("goAdminBtn").onclick = navigateStaffLogin;
+  document.getElementById("publicAdminBtn").onclick = navigateStaffLogin;
+  document.getElementById("clientLogoutBtn")?.addEventListener("click", logoutClient);
+  bindClientAccessForms();
+}
+
+function renderClientAccessCard() {
+  if (state.clientUser) {
+    return `
+      <aside class="client-access-card signed" id="clientes">
+        <span class="catalog-badge">Cuenta cliente</span>
+        <h2>Hola, ${esc(state.clientUser.nombre || "cliente")}</h2>
+        <p>Tu cuenta esta lista para futuras cotizaciones, pedidos y seguimiento de compras.</p>
+        <div class="client-session-box">
+          <span>Email</span>
+          <strong>${esc(state.clientUser.email)}</strong>
+        </div>
+        <button class="ghost" id="clientLogoutCardBtn">Cerrar sesion de cliente</button>
+      </aside>
+    `;
+  }
+
+  return `
+    <aside class="client-access-card" id="clientes">
+      <span class="catalog-badge">Clientes</span>
+      <h2>Accede o crea tu cuenta</h2>
+      <p>Guarda tus datos para futuras cotizaciones y pedidos de madera.</p>
+      <div class="client-forms">
+        <form id="clientLoginForm" autocomplete="off">
+          <strong>Ingresar</strong>
+          <label>Email<input name="email" type="email" autocomplete="off" required></label>
+          <label>Contrasena<input name="password" type="password" autocomplete="off" required></label>
+          <button class="primary">Entrar como cliente</button>
+        </form>
+        <form id="clientRegisterForm" autocomplete="off">
+          <strong>Crear cuenta</strong>
+          <label>Nombre o razon social<input name="nombre" required></label>
+          <label>Email<input name="email" type="email" autocomplete="off" required></label>
+          <label>Contrasena<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+          <label>Telefono<input name="telefono"></label>
+          <label>Ciudad<input name="ciudad"></label>
+          <button>Crear cuenta cliente</button>
+        </form>
+      </div>
+    </aside>
+  `;
+}
+
+function bindClientAccessForms() {
+  document.getElementById("clientLogoutCardBtn")?.addEventListener("click", logoutClient);
+  const loginForm = document.getElementById("clientLoginForm");
+  if (loginForm) {
+    loginForm.onsubmit = async event => {
+      event.preventDefault();
+      const data = formData(event.currentTarget);
+      await safe(async () => {
+        const auth = await api("/api/clientes-portal/login", {
+          method: "POST",
+          skipAuth: true,
+          body: JSON.stringify({ email: data.email, password: data.password })
+        });
+        setClientSession(auth);
+        render();
+      }, "Cliente conectado");
+    };
+  }
+
+  const registerForm = document.getElementById("clientRegisterForm");
+  if (registerForm) {
+    registerForm.onsubmit = async event => {
+      event.preventDefault();
+      const data = formData(event.currentTarget);
+      await safe(async () => {
+        const auth = await api("/api/clientes-portal/register", {
+          method: "POST",
+          skipAuth: true,
+          body: JSON.stringify(data)
+        });
+        setClientSession(auth);
+        render();
+      }, "Cuenta cliente creada");
+    };
+  }
+}
+
+function setClientSession(auth) {
+  state.clientToken = auth.token;
+  state.clientUser = auth;
+  localStorage.setItem("sicomoro_client_token", auth.token);
+  localStorage.setItem("sicomoro_client_user", JSON.stringify(auth));
+}
+
+function logoutClient() {
+  state.clientToken = "";
+  state.clientUser = null;
+  localStorage.removeItem("sicomoro_client_token");
+  localStorage.removeItem("sicomoro_client_user");
+  render();
 }
 
 function renderCatalogCard(item) {

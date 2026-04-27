@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Sicomoro.Application.Interfaces;
 using Sicomoro.Domain.Interfaces;
@@ -27,7 +28,18 @@ public static class DependencyInjection
         services.AddScoped<IUserCreationKeyValidator, UserCreationKeyValidator>();
         services.AddScoped<EmailSenderAdapter>();
         services.AddScoped<IEmailSender>(sp => new RetryEmailSenderDecorator(sp.GetRequiredService<EmailSenderAdapter>()));
-        services.AddScoped<IWhatsAppSender, WhatsAppSenderAdapter>();
+        var whatsAppOptions = new WhatsAppCloudOptions
+        {
+            Enabled = bool.TryParse(configuration["WhatsApp:Enabled"], out var whatsAppEnabled) && whatsAppEnabled,
+            ApiVersion = configuration["WhatsApp:ApiVersion"] ?? "v25.0",
+            AccessToken = configuration["WhatsApp:AccessToken"],
+            PhoneNumberId = configuration["WhatsApp:PhoneNumberId"],
+            OwnerPhoneNumber = configuration["WhatsApp:OwnerPhoneNumber"]
+        };
+        services.AddSingleton(Options.Create(whatsAppOptions));
+        services.AddSingleton(new HttpClient());
+        services.AddSingleton<IWhatsAppSender, WhatsAppCloudSender>();
+        services.AddScoped<IBusinessAlertService, BusinessAlertService>();
         services.AddScoped<PdfComprobanteProvider>();
         services.AddScoped<FacturacionElectronicaProvider>();
         services.AddScoped<IDocumentoFactory, DocumentoFactory>();

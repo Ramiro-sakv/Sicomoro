@@ -95,6 +95,36 @@ La rama `codex/v1.2-app-movil` deja preparado Sicomoro como PWA instalable:
 
 Para probar instalacion real en celular se necesita HTTPS, por ejemplo Render. En `localhost` sirve para validar el frontend, pero algunos celulares no mostraran el boton de instalacion si se abre por IP local sin HTTPS.
 
+## WhatsApp Cloud API
+
+Sicomoro puede enviar alertas al dueño usando WhatsApp Cloud API. No guardes el token en el codigo ni en GitHub; ponlo como variables de entorno en Render.
+
+Variables necesarias:
+
+```text
+WhatsApp__Enabled=true
+WhatsApp__ApiVersion=v25.0
+WhatsApp__PhoneNumberId=ID_DEL_NUMERO_DE_META
+WhatsApp__OwnerPhoneNumber=591NUMERO_DEL_DUENO
+WhatsApp__AccessToken=TOKEN_DE_META
+```
+
+Con el numero de prueba de Meta, primero agrega el numero destinatario en `Para` dentro de `WhatsApp > API Setup`. Luego puedes probar:
+
+```http
+POST /api/notificaciones/whatsapp-prueba
+Authorization: Bearer TOKEN_JWT
+Content-Type: application/json
+```
+
+```json
+{
+  "mensaje": "Prueba desde Sicomoro"
+}
+```
+
+Las alertas automaticas quedan conectadas a venta confirmada, compra recibida, pago registrado, ajuste de inventario y venta anulada. Si WhatsApp falla, la operacion del negocio no se rompe; el error queda en logs.
+
 ## Comandos locales
 
 ```powershell

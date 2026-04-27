@@ -17,6 +17,8 @@ services:
         value: "true"
       - key: Swagger__Enabled
         value: "false"
+      - key: WhatsApp__Enabled
+        value: "false"
       - key: Jwt__Issuer
         value: Sicomoro
       - key: Jwt__Key

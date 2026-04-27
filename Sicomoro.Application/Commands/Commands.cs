@@ -252,7 +252,18 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
     }
 }
 
-public sealed class AjustarInventarioHandler(IUnitOfWork uow, ICurrentUserService currentUser) : IRequestHandler<AjustarInventarioCommand, InventarioDto>
+public sealed record EnviarWhatsAppPruebaCommand(string Mensaje) : IRequest<bool>;
+
+public sealed class WhatsAppPruebaHandler(IBusinessAlertService alertas) : IRequestHandler<EnviarWhatsAppPruebaCommand, bool>
+{
+    public async Task<bool> Handle(EnviarWhatsAppPruebaCommand request, CancellationToken cancellationToken)
+    {
+        await alertas.EnviarPruebaAsync(request.Mensaje, cancellationToken);
+        return true;
+    }
+}
+
+public sealed class AjustarInventarioHandler(IUnitOfWork uow, ICurrentUserService currentUser, IBusinessAlertService alertas) : IRequestHandler<AjustarInventarioCommand, InventarioDto>
 {
     public async Task<InventarioDto> Handle(AjustarInventarioCommand r, CancellationToken ct)
     {
@@ -267,11 +278,12 @@ public sealed class AjustarInventarioHandler(IUnitOfWork uow, ICurrentUserServic
         inventario.Ajustar(r.NuevoStock, r.UbicacionInterna);
         await uow.Inventario.AgregarMovimientoAsync(new MovimientoInventario(r.ProductoId, usuarioId, TipoMovimientoInventario.AjusteManual, r.NuevoStock, producto.PrecioCompra, r.Motivo), ct);
         await uow.SaveChangesAsync(ct);
+        await alertas.InventarioAjustadoAsync(producto.NombreComercial, inventario.StockActual, producto.StockMinimo, r.Motivo, ct);
         return inventario.ToDto(producto);
     }
 }
 
-public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentUser) :
+public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentUser, IBusinessAlertService alertas) :
     IRequestHandler<CrearCompraCommand, Guid>,
     IRequestHandler<ActualizarCompraCommand, CompraDto>,
     IRequestHandler<RecibirCompraCommand, bool>
@@ -317,11 +329,13 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
         await uow.AgregarAsync(new CajaMovimiento(TipoCajaMovimiento.Egreso, compra.CostoTransporte + compra.OtrosCostos, "Costos de compra/transporte", usuarioId, compraId: compra.Id), ct);
         await uow.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        var proveedor = await uow.Proveedores.ObtenerPorIdAsync(compra.ProveedorId, ct);
+        await alertas.CompraRecibidaAsync(compra.Id, proveedor?.Nombre ?? compra.ProveedorId.ToString(), compra.Origen, compra.Detalles.Sum(x => x.Cantidad * x.PrecioCompra), ct);
         return true;
     }
 }
 
-public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUser, PricingService pricing, VentaValidationChain validationChain, EstadoVentaFactory estadoFactory) :
+public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUser, PricingService pricing, VentaValidationChain validationChain, EstadoVentaFactory estadoFactory, IBusinessAlertService alertas) :
     IRequestHandler<CrearVentaCommand, Guid>,
     IRequestHandler<ActualizarVentaCommand, VentaDto>,
     IRequestHandler<ConfirmarVentaCommand, VentaDto>,
@@ -378,6 +392,8 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
             await uow.Cobros.AgregarAsync(new Cobro(venta.Id, venta.ClienteId, venta.SaldoPendiente, venta.FechaVencimiento), ct);
         await uow.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        var cliente = await uow.Clientes.ObtenerPorIdAsync(venta.ClienteId, ct);
+        await alertas.VentaConfirmadaAsync(venta.Id, cliente?.NombreRazonSocial ?? venta.ClienteId.ToString(), venta.Total, venta.MontoPagado, venta.SaldoPendiente, ct);
         return venta.ToDto();
     }
 
@@ -400,11 +416,12 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         }
         await uow.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        await alertas.VentaAnuladaAsync(venta.Id, r.Motivo, ct);
         return true;
     }
 }
 
-public sealed class CobroHandler(IUnitOfWork uow, ICurrentUserService currentUser, EstadoVentaFactory estadoFactory) : IRequestHandler<RegistrarPagoCommand, CobroDto>
+public sealed class CobroHandler(IUnitOfWork uow, ICurrentUserService currentUser, EstadoVentaFactory estadoFactory, IBusinessAlertService alertas) : IRequestHandler<RegistrarPagoCommand, CobroDto>
 {
     public async Task<CobroDto> Handle(RegistrarPagoCommand r, CancellationToken ct)
     {
@@ -419,6 +436,8 @@ public sealed class CobroHandler(IUnitOfWork uow, ICurrentUserService currentUse
         await uow.AgregarAsync(new CajaMovimiento(TipoCajaMovimiento.Ingreso, r.Monto, "Pago de cuenta por cobrar", usuarioId, ventaId: venta.Id, pagoId: pago.Id), ct);
         await uow.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        var cliente = await uow.Clientes.ObtenerPorIdAsync(venta.ClienteId, ct);
+        await alertas.PagoRegistradoAsync(venta.Id, cliente?.NombreRazonSocial ?? venta.ClienteId.ToString(), r.Monto, cobro.SaldoPendiente, ct);
         return cobro.ToDto();
     }
 }

@@ -63,4 +63,15 @@ public interface IEmailSender
 public interface IWhatsAppSender
 {
     Task EnviarAsync(string telefono, string mensaje, string? adjunto = null, CancellationToken cancellationToken = default);
+    Task EnviarPlantillaAsync(string telefono, string plantilla, string codigoIdioma = "en_US", IReadOnlyCollection<string>? parametros = null, CancellationToken cancellationToken = default);
+}
+
+public interface IBusinessAlertService
+{
+    Task EnviarPruebaAsync(string mensaje, CancellationToken cancellationToken = default);
+    Task VentaConfirmadaAsync(Guid ventaId, string cliente, decimal total, decimal pagado, decimal saldo, CancellationToken cancellationToken = default);
+    Task CompraRecibidaAsync(Guid compraId, string proveedor, string origen, decimal totalProductos, CancellationToken cancellationToken = default);
+    Task PagoRegistradoAsync(Guid ventaId, string cliente, decimal monto, decimal saldo, CancellationToken cancellationToken = default);
+    Task InventarioAjustadoAsync(string producto, decimal stockActual, decimal stockMinimo, string motivo, CancellationToken cancellationToken = default);
+    Task VentaAnuladaAsync(Guid ventaId, string motivo, CancellationToken cancellationToken = default);
 }

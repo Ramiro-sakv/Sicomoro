@@ -89,7 +89,11 @@ public sealed class VentaRepository(SicomoroDbContext db) : Repository<Venta>(db
         Db.Ventas.Include(x => x.Detalles).AsNoTracking().OrderByDescending(x => x.Fecha).ToListAsync(cancellationToken);
 
     public Task<Venta?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default) =>
-        Db.Ventas.Include(x => x.Detalles).Include(x => x.Cliente).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        Db.Ventas
+            .Include(x => x.Detalles)
+            .ThenInclude(x => x.ProductoMadera)
+            .Include(x => x.Cliente)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 }
 
 public sealed class CobroRepository(SicomoroDbContext db) : Repository<Cobro>(db), ICobroRepository

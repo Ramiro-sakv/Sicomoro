@@ -443,8 +443,9 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
     public async Task<DocumentoDto> Handle(GenerarDocumentoVentaCommand r, CancellationToken ct)
     {
         var usuarioId = currentUser.UserId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
+        var usuario = await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
-        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, ct);
+        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
         await uow.AgregarAsync(documento, ct);
         await uow.SaveChangesAsync(ct);
         return documento.ToDto();
@@ -452,8 +453,10 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
 
     public async Task<bool> Handle(EnviarDocumentoVentaCommand r, CancellationToken ct)
     {
+        var usuarioId = currentUser.UserId ?? Guid.Empty;
+        var usuario = usuarioId == Guid.Empty ? null : await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
-        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, currentUser.UserId ?? Guid.Empty, ct);
+        var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
         await factory.Crear(r.Tipo).EnviarDocumentoAsync(documento, r.Destino, ct);
         return true;
     }

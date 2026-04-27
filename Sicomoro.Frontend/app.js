@@ -11,6 +11,7 @@ const state = {
   token: localStorage.getItem("sicomoro_token") || "",
   user: JSON.parse(localStorage.getItem("sicomoro_user") || "null"),
   view: localStorage.getItem("sicomoro_view") || "dashboard",
+  dashboardRange: localStorage.getItem("sicomoro_dashboard_range") || "mes",
   search: {},
   pages: {},
   selectedClienteId: "",
@@ -221,6 +222,83 @@ function table(columns, rows, actions) {
     return `<tr>${cells}${actionCell}</tr>`;
   }).join("");
   return `<div class="table-wrap"><table><thead><tr>${columns.map(col => `<th>${esc(col.label)}</th>`).join("")}${actionHead}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function buildSalesBuckets(range, ventas) {
+  const now = new Date();
+  const buckets = [];
+  const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+  if (range === "semana") {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      buckets.push({ label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`, key: dateKey(d), total: 0, count: 0 });
+    }
+    ventas.forEach(venta => {
+      const bucket = buckets.find(x => x.key === dateKey(new Date(venta.fecha)));
+      if (bucket) addSaleToBucket(bucket, venta);
+    });
+  } else if (range === "anio") {
+    for (let month = 0; month < 12; month++) {
+      buckets.push({ label: monthNames[month], year: now.getFullYear(), month, total: 0, count: 0 });
+    }
+    ventas.forEach(venta => {
+      const d = new Date(venta.fecha);
+      const bucket = buckets.find(x => x.year === d.getFullYear() && x.month === d.getMonth());
+      if (bucket) addSaleToBucket(bucket, venta);
+    });
+  } else {
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const weeks = Math.ceil(daysInMonth / 7);
+    for (let week = 1; week <= weeks; week++) buckets.push({ label: `Sem ${week}`, week, total: 0, count: 0 });
+    ventas.forEach(venta => {
+      const d = new Date(venta.fecha);
+      if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return;
+      const week = Math.ceil(d.getDate() / 7);
+      const bucket = buckets.find(x => x.week === week);
+      if (bucket) addSaleToBucket(bucket, venta);
+    });
+  }
+
+  return buckets;
+}
+
+function addSaleToBucket(bucket, venta) {
+  bucket.total += Number(venta.total || 0);
+  bucket.count += 1;
+}
+
+function dateKey(value) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function renderSalesChart(buckets) {
+  const max = Math.max(...buckets.map(x => x.total), 1);
+  const total = buckets.reduce((sum, x) => sum + x.total, 0);
+  const count = buckets.reduce((sum, x) => sum + x.count, 0);
+  const best = buckets.reduce((winner, x) => x.total > winner.total ? x : winner, buckets[0] || { label: "-", total: 0 });
+  const activeBuckets = buckets.filter(x => x.total > 0).length || 1;
+  const promedio = total / activeBuckets;
+
+  return `
+    <div class="chart-summary">
+      <div><span>Total del periodo</span><strong>${money(total)}</strong></div>
+      <div><span>Ventas</span><strong>${count}</strong></div>
+      <div><span>Mejor periodo</span><strong>${esc(best.label)} / ${money(best.total)}</strong></div>
+      <div><span>Promedio activo</span><strong>${money(promedio)}</strong></div>
+    </div>
+    <div class="sales-chart">
+      ${buckets.map(bucket => `
+        <div class="chart-column" title="${esc(bucket.label)} - ${money(bucket.total)}">
+          <div class="chart-track">
+            <div class="chart-bar" style="height:${Math.max(4, Math.round(bucket.total / max * 100))}%"></div>
+          </div>
+          <span>${esc(bucket.label)}</span>
+          <strong>${money(bucket.total)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function searchBox(key, placeholder = "Buscar") {
@@ -518,6 +596,7 @@ function renderDashboard() {
   const deuda = state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   const bajo = state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo));
   const ventas = state.cache.ventas.filter(x => x.estado !== 4);
+  const buckets = buildSalesBuckets(state.dashboardRange, ventas);
   const ventasPendientes = state.cache.ventas.filter(x => x.estado === 1).length;
   const comprasTransito = state.cache.compras.filter(x => x.estado === 2).length;
   const deudasVencidas = state.cache.deudas.filter(x => x.estado === 4 || (x.fechaVencimiento && date(x.fechaVencimiento) < today())).length;
@@ -532,6 +611,19 @@ function renderDashboard() {
       <div class="kpi"><span>Compras en transito</span><strong>${comprasTransito}</strong></div>
       <div class="kpi"><span>Deudas vencidas</span><strong>${deudasVencidas}</strong></div>
       <div class="kpi"><span>Productos activos</span><strong>${productosActivos().length}</strong></div>
+    </section>
+    <section class="panel dashboard-chart-panel">
+      <div class="panel-header">
+        <h3>Ritmo de ventas</h3>
+        <div class="segmented">
+          <button class="${state.dashboardRange === "semana" ? "active" : ""}" data-dashboard-range="semana">Semana</button>
+          <button class="${state.dashboardRange === "mes" ? "active" : ""}" data-dashboard-range="mes">Mes</button>
+          <button class="${state.dashboardRange === "anio" ? "active" : ""}" data-dashboard-range="anio">Ano</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        ${renderSalesChart(buckets)}
+      </div>
     </section>
     <section class="layout">
       <div class="panel">
@@ -553,6 +645,11 @@ function renderDashboard() {
       </div>
     </section>
   `, "Panel");
+  document.querySelectorAll("[data-dashboard-range]").forEach(btn => btn.onclick = () => {
+    state.dashboardRange = btn.dataset.dashboardRange;
+    localStorage.setItem("sicomoro_dashboard_range", state.dashboardRange);
+    renderDashboard();
+  });
 }
 
 function badge(text, type = "") {

@@ -1,11 +1,22 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.2.1";
-const IS_MOBILE_DEVICE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-  || (navigator.maxTouchPoints > 1 && Math.min(screen.width || 9999, screen.height || 9999) <= 900);
+const APP_VERSION = "v1.3.1";
 let deferredInstallPrompt = null;
 
-if (IS_MOBILE_DEVICE) document.documentElement.classList.add("mobile-device");
+function shouldUseMobileLayout() {
+  const width = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || screen.width || 9999;
+  const phoneOrTablet = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches === true;
+  return width <= 820 || ((phoneOrTablet || coarsePointer) && width <= 1100);
+}
+
+function syncDeviceLayout() {
+  document.documentElement.classList.toggle("mobile-device", shouldUseMobileLayout());
+}
+
+syncDeviceLayout();
+window.addEventListener("resize", syncDeviceLayout);
+window.visualViewport?.addEventListener("resize", syncDeviceLayout);
 
 function normalizeApiBase(value) {
   return String(value || API_DEFAULT).trim().replace(/\/+$/, "");

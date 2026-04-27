@@ -85,6 +85,16 @@ Usuarios:
 - Para crear usuarios se requiere rol `Administrador` y la clave de creacion `13067264`.
 - Los administradores pueden borrar usuarios, excepto su propia cuenta y el ultimo administrador.
 
+## App movil PWA
+
+La rama `codex/v1.2-app-movil` deja preparado Sicomoro como PWA instalable:
+
+- `Sicomoro.Frontend/manifest.webmanifest`: nombre, colores e iconos de instalacion.
+- `Sicomoro.Frontend/service-worker.js`: cachea la pantalla inicial y archivos estaticos.
+- Pantalla `App movil`: instrucciones para Android, iPhone y boton de instalacion cuando el navegador lo permita.
+
+Para probar instalacion real en celular se necesita HTTPS, por ejemplo Render. En `localhost` sirve para validar el frontend, pero algunos celulares no mostraran el boton de instalacion si se abre por IP local sin HTTPS.
+
 ## Comandos locales
 
 ```powershell

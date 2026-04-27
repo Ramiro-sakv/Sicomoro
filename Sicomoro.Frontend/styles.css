@@ -398,6 +398,11 @@ th {
   color: var(--red);
 }
 
+.badge.good {
+  background: #eaf7ef;
+  color: var(--green-2);
+}
+
 .toast {
   position: fixed;
   right: 18px;
@@ -549,6 +554,82 @@ th {
   min-width: 0;
 }
 
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.install-hero {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #ffffff 0%, #eef5f0 100%);
+}
+
+.install-hero .panel-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.install-hero h3 {
+  margin: 10px 0 8px;
+  font-size: 24px;
+}
+
+.install-hero p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  max-width: 760px;
+}
+
+.app-icon-preview {
+  width: 92px;
+  height: 92px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,0)),
+    #18221d;
+  color: #fff;
+  font-size: 48px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(24, 34, 29, .22);
+  border: 4px solid #2f6f4f;
+}
+
+.install-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.install-steps div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.install-steps strong {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+}
+
+.install-steps span {
+  color: #40504a;
+  line-height: 1.35;
+}
+
 html.mobile-device,
 html.mobile-device body {
   width: 100%;
@@ -633,6 +714,7 @@ html.mobile-device .layout,
 html.mobile-device .grid,
 html.mobile-device .kpi-grid,
 html.mobile-device .detail-grid,
+html.mobile-device .install-grid,
 html.mobile-device .chart-summary,
 html.mobile-device .line-item,
 html.mobile-device .line-item[data-compra-line] {
@@ -710,6 +792,22 @@ html.mobile-device .chart-column strong {
 
 html.mobile-device .line-product {
   grid-column: 1 / -1;
+}
+
+html.mobile-device .install-hero .panel-body {
+  grid-template-columns: 1fr;
+  justify-items: start;
+}
+
+html.mobile-device .install-hero h3 {
+  font-size: 21px;
+}
+
+html.mobile-device .app-icon-preview {
+  width: 74px;
+  height: 74px;
+  border-radius: 18px;
+  font-size: 38px;
 }
 
 html.mobile-device .line-item button,
@@ -905,6 +1003,7 @@ html.mobile-device .split-actions {
     max-width: none;
   }
   .detail-grid,
+  .install-grid,
   .chart-summary,
   .line-item,
   .line-item[data-compra-line] {
@@ -939,6 +1038,22 @@ html.mobile-device .split-actions {
 
   .chart-column strong {
     display: none;
+  }
+
+  .install-hero .panel-body {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .install-hero h3 {
+    font-size: 21px;
+  }
+
+  .app-icon-preview {
+    width: 74px;
+    height: 74px;
+    border-radius: 18px;
+    font-size: 38px;
   }
 
   .line-item button {

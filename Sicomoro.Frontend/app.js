@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.2.0-pwa";
+const APP_VERSION = "v1.2.1";
 const IS_MOBILE_DEVICE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || (navigator.maxTouchPoints > 1 && Math.min(screen.width || 9999, screen.height || 9999) <= 900);
 let deferredInstallPrompt = null;
@@ -523,9 +523,6 @@ function renderLogin() {
         <label>Password
           <input name="password" type="password" autocomplete="off" required>
         </label>
-        <label>API
-          <input name="apiBase" value="${esc(state.apiBase)}">
-        </label>
         <div class="actions">
           <button class="primary" type="submit">Entrar</button>
         </div>
@@ -535,7 +532,7 @@ function renderLogin() {
   document.getElementById("loginForm").onsubmit = async event => {
     event.preventDefault();
     const data = formData(event.currentTarget);
-    state.apiBase = normalizeApiBase(data.apiBase || API_DEFAULT);
+    state.apiBase = normalizeApiBase(API_DEFAULT);
     localStorage.setItem("sicomoro_api", state.apiBase);
     await safe(async () => {
       const auth = await api("/api/auth/login", {

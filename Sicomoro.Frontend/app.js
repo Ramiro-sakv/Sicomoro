@@ -1,8 +1,9 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.1.3";
+const APP_VERSION = "v1.2.0-pwa";
 const IS_MOBILE_DEVICE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
   || (navigator.maxTouchPoints > 1 && Math.min(screen.width || 9999, screen.height || 9999) <= 900);
+let deferredInstallPrompt = null;
 
 if (IS_MOBILE_DEVICE) document.documentElement.classList.add("mobile-device");
 
@@ -51,6 +52,7 @@ const views = [
   ["documentos", "Documentos", [1, 2, 5]],
   ["reportes", "Reportes", [1, 5]],
   ["perfil", "Mi perfil", [1, 2, 3, 4, 5, 6]],
+  ["app", "App movil", [1, 2, 3, 4, 5, 6]],
   ["usuarios", "Usuarios", [1]],
   ["notificaciones", "Notificaciones", [1, 2, 3, 4, 5]],
   ["auditoria", "Auditoria", [1, 5]]
@@ -131,6 +133,35 @@ function toast(message) {
   el.textContent = message;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3600);
+}
+
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (state.view === "app") render();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  toast("App instalada");
+  if (state.view === "app") render();
+});
+
+function isStandaloneApp() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function canUseInstallPrompt() {
+  return Boolean(deferredInstallPrompt) && !isStandaloneApp();
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {
+      console.warn("No se pudo registrar el service worker de Sicomoro.");
+    });
+  });
 }
 
 async function api(path, options = {}) {
@@ -591,6 +622,7 @@ async function render() {
     documentos: renderDocumentos,
     reportes: renderReportes,
     perfil: renderPerfil,
+    app: renderAppInstall,
     usuarios: renderUsuarios,
     notificaciones: renderNotificaciones,
     auditoria: renderAuditoria
@@ -1471,6 +1503,92 @@ function renderPerfil() {
   };
 }
 
+function renderAppInstall() {
+  const standalone = isStandaloneApp();
+  const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const swSupport = "serviceWorker" in navigator;
+  const promptReady = canUseInstallPrompt();
+  const status = standalone
+    ? ["Instalada", "Sicomoro ya esta abierto como app en este dispositivo.", "good"]
+    : promptReady
+      ? ["Lista para instalar", "Tu navegador ya permite crear el acceso directo de app.", "good"]
+      : secure && swSupport
+        ? ["Preparada", "Si no aparece el boton de instalacion, usa el menu del navegador.", "warn"]
+        : ["Requiere HTTPS", "La instalacion real funciona en Render u otro dominio con HTTPS.", "bad"];
+
+  renderShell(`
+    <section class="install-grid">
+      <div class="panel install-hero">
+        <div class="panel-body">
+          <div class="app-icon-preview">S</div>
+          <div>
+            <span class="badge ${status[2]}">${status[0]}</span>
+            <h3>Instalar Sicomoro en el celular</h3>
+            <p>La app se abre desde la pantalla principal, usa la misma cuenta y se conecta al mismo servidor de Sicomoro.</p>
+            <div class="actions">
+              <button id="installAppBtn" class="primary" ${promptReady ? "" : "disabled"}>Instalar app</button>
+              <button id="copyAppUrlBtn">Copiar link</button>
+            </div>
+            <p class="hint">${status[1]}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3>Android</h3></div>
+        <div class="panel-body install-steps">
+          <div><strong>1</strong><span>Abre Sicomoro desde Chrome en el celular.</span></div>
+          <div><strong>2</strong><span>Toca Instalar app. Si no aparece, abre el menu del navegador.</span></div>
+          <div><strong>3</strong><span>Elige Agregar a pantalla principal y confirma.</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3>iPhone</h3></div>
+        <div class="panel-body install-steps">
+          <div><strong>1</strong><span>Abre Sicomoro desde Safari.</span></div>
+          <div><strong>2</strong><span>Toca Compartir.</span></div>
+          <div><strong>3</strong><span>Elige Agregar a pantalla de inicio.</span></div>
+        </div>
+      </div>
+
+      <div class="panel full-panel">
+        <div class="panel-header"><h3>Estado tecnico</h3></div>
+        <div class="panel-body">
+          <div class="detail-grid">
+            <div><span>Modo app</span><strong>${standalone ? "Si" : "No"}</strong></div>
+            <div><span>Conexion segura</span><strong>${secure ? "Si" : "No"}</strong></div>
+            <div><span>Service worker</span><strong>${swSupport ? "Compatible" : "No compatible"}</strong></div>
+            <div><span>Servidor</span><strong>${esc(state.apiBase)}</strong></div>
+          </div>
+          <p class="hint">La app instalada necesita internet para guardar ventas, compras, cobros e inventario. Lo que queda preparado sin internet es la carga inicial de la pantalla.</p>
+        </div>
+      </div>
+    </section>
+  `, "App movil");
+
+  document.getElementById("installAppBtn").onclick = async () => {
+    if (!deferredInstallPrompt) {
+      toast("Usa el menu del navegador para agregar Sicomoro a la pantalla principal.");
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    render();
+  };
+
+  document.getElementById("copyAppUrlBtn").onclick = async () => {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard no disponible");
+      await navigator.clipboard.writeText(window.location.origin);
+      toast("Link copiado");
+    } catch {
+      window.prompt("Copia este link para abrir Sicomoro:", window.location.origin);
+    }
+  };
+}
+
 function renderUsuarios() {
   renderShell(`
     <section class="layout">
@@ -1608,4 +1726,5 @@ function toIsoDate(value) {
   return value ? `${value}T00:00:00Z` : null;
 }
 
+registerServiceWorker();
 render();

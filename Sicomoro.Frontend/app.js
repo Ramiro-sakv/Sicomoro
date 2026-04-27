@@ -1,6 +1,10 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.1.2";
+const APP_VERSION = "v1.1.3";
+const IS_MOBILE_DEVICE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || (navigator.maxTouchPoints > 1 && Math.min(screen.width || 9999, screen.height || 9999) <= 900);
+
+if (IS_MOBILE_DEVICE) document.documentElement.classList.add("mobile-device");
 
 function normalizeApiBase(value) {
   return String(value || API_DEFAULT).trim().replace(/\/+$/, "");

@@ -549,6 +549,233 @@ th {
   min-width: 0;
 }
 
+html.mobile-device,
+html.mobile-device body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+html.mobile-device body {
+  font-size: 15px;
+}
+
+html.mobile-device button,
+html.mobile-device input,
+html.mobile-device select,
+html.mobile-device textarea {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+html.mobile-device .app-shell {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+html.mobile-device .sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  padding: 10px;
+  gap: 10px;
+}
+
+html.mobile-device .brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 8px;
+  border-bottom: 0;
+}
+
+html.mobile-device .brand h1 {
+  font-size: 20px;
+}
+
+html.mobile-device .brand span {
+  margin-top: 0;
+  font-size: 12px;
+  text-align: right;
+}
+
+html.mobile-device .nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+}
+
+html.mobile-device .nav button {
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding: 10px 12px;
+  font-size: 14px;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+html.mobile-device .session {
+  display: none;
+}
+
+html.mobile-device .main {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+}
+
+html.mobile-device .layout,
+html.mobile-device .grid,
+html.mobile-device .kpi-grid,
+html.mobile-device .detail-grid,
+html.mobile-device .chart-summary,
+html.mobile-device .line-item,
+html.mobile-device .line-item[data-compra-line] {
+  grid-template-columns: 1fr;
+}
+
+html.mobile-device .panel {
+  width: 100%;
+  min-width: 0;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(25, 38, 32, .06);
+}
+
+html.mobile-device .panel-body {
+  padding: 12px;
+}
+
+html.mobile-device .topbar,
+html.mobile-device .panel-header,
+html.mobile-device .pager,
+html.mobile-device .line-header {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+html.mobile-device .topbar-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100%;
+}
+
+html.mobile-device .topbar-actions .badge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  justify-content: center;
+}
+
+html.mobile-device .panel-header .search-input {
+  max-width: none;
+}
+
+html.mobile-device .segmented {
+  width: 100%;
+}
+
+html.mobile-device .segmented button {
+  flex: 1;
+}
+
+html.mobile-device .sales-chart {
+  min-height: 210px;
+  grid-auto-columns: minmax(38px, 1fr);
+  gap: 4px;
+  overflow-x: auto;
+}
+
+html.mobile-device .chart-column {
+  min-height: 190px;
+  gap: 4px;
+}
+
+html.mobile-device .chart-track {
+  height: 135px;
+}
+
+html.mobile-device .chart-column span {
+  font-size: 10px;
+}
+
+html.mobile-device .chart-column strong {
+  display: none;
+}
+
+html.mobile-device .line-product {
+  grid-column: 1 / -1;
+}
+
+html.mobile-device .line-item button,
+html.mobile-device .split-actions button,
+html.mobile-device .actions-cell button {
+  width: 100%;
+}
+
+html.mobile-device .table-wrap {
+  max-height: none;
+  overflow: visible;
+}
+
+html.mobile-device table {
+  min-width: 0;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+html.mobile-device thead {
+  display: none;
+}
+
+html.mobile-device tbody,
+html.mobile-device tr,
+html.mobile-device td {
+  display: block;
+  width: 100%;
+}
+
+html.mobile-device tr {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+html.mobile-device td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  word-break: break-word;
+}
+
+html.mobile-device td:last-child {
+  border-bottom: 0;
+}
+
+html.mobile-device td::before {
+  content: attr(data-label);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+html.mobile-device td.actions-cell,
+html.mobile-device .split-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
 @media (max-width: 1020px) {
   .app-shell { grid-template-columns: 1fr; }
   .sidebar {

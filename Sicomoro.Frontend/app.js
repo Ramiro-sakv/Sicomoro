@@ -1,5 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
+const APP_VERSION = "v1.1.2";
 
 function normalizeApiBase(value) {
   return String(value || API_DEFAULT).trim().replace(/\/+$/, "");
@@ -536,6 +537,7 @@ function renderShell(content, title) {
         <div class="topbar">
           <h2>${esc(title)}</h2>
           <div class="topbar-actions">
+            <span class="badge version-badge">${APP_VERSION}</span>
             <span class="badge">${esc(state.apiBase)}</span>
             <button id="refreshBtn">Actualizar</button>
           </div>

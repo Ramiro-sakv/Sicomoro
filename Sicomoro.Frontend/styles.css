@@ -383,6 +383,11 @@ th {
   font-weight: 700;
 }
 
+.version-badge {
+  background: #eef3f0;
+  color: #40504a;
+}
+
 .badge.warn {
   background: #fff6df;
   color: var(--amber);
@@ -584,7 +589,7 @@ th {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 820px) {
   body {
     overflow-x: hidden;
   }

@@ -217,8 +217,8 @@ function table(columns, rows, actions) {
   if (!rows.length) return `<div class="empty">Sin registros</div>`;
   const actionHead = actions ? "<th>Acciones</th>" : "";
   const body = rows.map(row => {
-    const cells = columns.map(col => `<td>${col.render ? col.render(row) : esc(row[col.key])}</td>`).join("");
-    const actionCell = actions ? `<td>${actions(row)}</td>` : "";
+    const cells = columns.map(col => `<td data-label="${esc(col.label)}">${col.render ? col.render(row) : esc(row[col.key])}</td>`).join("");
+    const actionCell = actions ? `<td data-label="Acciones" class="actions-cell">${actions(row)}</td>` : "";
     return `<tr>${cells}${actionCell}</tr>`;
   }).join("");
   return `<div class="table-wrap"><table><thead><tr>${columns.map(col => `<th>${esc(col.label)}</th>`).join("")}${actionHead}</tr></thead><tbody>${body}</tbody></table></div>`;

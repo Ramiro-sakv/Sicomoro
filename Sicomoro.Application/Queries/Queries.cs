@@ -84,7 +84,7 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         (await uow.Transportes.ListarAsync(ct)).Select(x => x.ToDto()).ToList();
 
     public async Task<List<CompraDto>> Handle(ListarComprasQuery r, CancellationToken ct) =>
-        (await uow.Compras.ListarAsync(ct)).Select(x => new CompraDto(x.Id, x.ProveedorId, x.Origen, x.Estado, x.FechaCompra, x.Detalles.Sum(d => d.Cantidad * d.PrecioCompra), x.CostoTransporte, x.OtrosCostos)).ToList();
+        (await uow.Compras.ListarAsync(ct)).Select(x => x.ToDto()).ToList();
 
     public async Task<List<VentaDto>> Handle(ListarVentasQuery r, CancellationToken ct) => (await uow.Ventas.ListarAsync(ct)).Select(x => x.ToDto()).ToList();
 

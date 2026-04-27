@@ -282,6 +282,26 @@ public sealed class Compra : EntidadBase
         Detalles.Add(new CompraDetalle(Id, productoId, cantidad, precioCompra));
     }
 
+    public void ActualizarPendiente(Guid proveedorId, string origen, DateTime fechaCompra, DateTime? fechaEstimadaLlegada, decimal costoTransporte, decimal otrosCostos, string? observaciones)
+    {
+        if (Estado != EstadoCompra.Pendiente) throw new InvalidOperationException("Solo se puede editar una compra pendiente.");
+        ProveedorId = proveedorId;
+        Origen = origen.Trim();
+        FechaCompra = fechaCompra;
+        FechaEstimadaLlegada = fechaEstimadaLlegada;
+        CostoTransporte = costoTransporte;
+        OtrosCostos = otrosCostos;
+        Observaciones = observaciones;
+        MarcarActualizado();
+    }
+
+    public void LimpiarDetallesPendiente()
+    {
+        if (Estado != EstadoCompra.Pendiente) throw new InvalidOperationException("Solo se pueden cambiar detalles de una compra pendiente.");
+        Detalles.Clear();
+        MarcarActualizado();
+    }
+
     public void MarcarEnTransito()
     {
         if (Estado is EstadoCompra.Recibida or EstadoCompra.Cancelada) throw new InvalidOperationException("La compra no puede cambiar a transito.");
@@ -385,6 +405,24 @@ public sealed class Venta : EntidadBase
         if (cantidad <= 0 || precioUnitario < 0 || descuento < 0) throw new InvalidOperationException("Detalle de venta invalido.");
         Detalles.Add(new VentaDetalle(Id, productoId, cantidad, precioUnitario, descuento));
         RecalcularTotal();
+    }
+
+    public void ActualizarPendiente(Guid clienteId, MetodoPago metodoPago, DateTime? vencimiento, string? observaciones)
+    {
+        if (Estado != EstadoVenta.Pendiente) throw new InvalidOperationException("Solo se puede editar una venta pendiente.");
+        ClienteId = clienteId;
+        MetodoPago = metodoPago;
+        FechaVencimiento = vencimiento;
+        Observaciones = observaciones;
+        MarcarActualizado();
+    }
+
+    public void LimpiarDetallesPendiente()
+    {
+        if (Estado != EstadoVenta.Pendiente) throw new InvalidOperationException("Solo se pueden cambiar detalles de una venta pendiente.");
+        Detalles.Clear();
+        RecalcularTotal();
+        MarcarActualizado();
     }
 
     public void Confirmar(decimal montoPagado)

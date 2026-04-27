@@ -11,6 +11,10 @@ const state = {
   token: localStorage.getItem("sicomoro_token") || "",
   user: JSON.parse(localStorage.getItem("sicomoro_user") || "null"),
   view: localStorage.getItem("sicomoro_view") || "dashboard",
+  search: {},
+  pages: {},
+  selectedClienteId: "",
+  selectedProveedorId: "",
   cache: {
     clientes: [],
     proveedores: [],
@@ -74,6 +78,10 @@ const ventaEstados = {
 
 function isAdmin() {
   return currentRole() === 1;
+}
+
+function isGestion() {
+  return [1, 5].includes(currentRole());
 }
 
 function currentRole() {
@@ -157,6 +165,15 @@ async function safe(action, message = "Operacion completada") {
   }
 }
 
+async function safeApi(path, fallback = []) {
+  try {
+    return await api(path);
+  } catch (error) {
+    if (["Error HTTP 403", "Error HTTP 404"].includes(error.message)) return fallback;
+    throw error;
+  }
+}
+
 function setView(view) {
   if (!canAccess(view)) view = visibleViews()[0]?.[0] || "perfil";
   state.view = view;
@@ -206,15 +223,176 @@ function table(columns, rows, actions) {
   return `<div class="table-wrap"><table><thead><tr>${columns.map(col => `<th>${esc(col.label)}</th>`).join("")}${actionHead}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
+function searchBox(key, placeholder = "Buscar") {
+  return `<input class="search-input" id="${key}Search" value="${esc(state.search[key] || "")}" placeholder="${esc(placeholder)}">`;
+}
+
+function filterRows(key, rows, fields) {
+  const term = String(state.search[key] || "").trim().toLowerCase();
+  if (!term) return rows;
+  return rows.filter(row => fields.some(field => String(typeof field === "function" ? field(row) : row[field] || "").toLowerCase().includes(term)));
+}
+
+function paginate(key, rows, pageSize = 20) {
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const page = Math.min(Math.max(Number(state.pages[key] || 1), 1), pages);
+  state.pages[key] = page;
+  return {
+    rows: rows.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    pages,
+    total: rows.length
+  };
+}
+
+function pager(key, page) {
+  if (page.pages <= 1) return `<div class="pager"><span>${page.total} registros</span></div>`;
+  return `
+    <div class="pager">
+      <span>${page.total} registros - pagina ${page.page} de ${page.pages}</span>
+      <div>
+        <button data-page-key="${key}" data-page-value="${page.page - 1}" ${page.page <= 1 ? "disabled" : ""}>Anterior</button>
+        <button data-page-key="${key}" data-page-value="${page.page + 1}" ${page.page >= page.pages ? "disabled" : ""}>Siguiente</button>
+      </div>
+    </div>
+  `;
+}
+
+function wireListControls(key, renderer) {
+  const search = document.getElementById(`${key}Search`);
+  if (search) {
+    search.oninput = () => {
+      state.search[key] = search.value;
+      state.pages[key] = 1;
+      renderer();
+    };
+  }
+
+  document.querySelectorAll(`[data-page-key="${key}"]`).forEach(btn => btn.onclick = () => {
+    state.pages[key] = Number(btn.dataset.pageValue);
+    renderer();
+  });
+}
+
+function downloadCsv(filename, rows, columns) {
+  const header = columns.map(x => x.label).join(",");
+  const body = rows.map(row => columns.map(col => csvCell(col.value ? col.value(row) : row[col.key])).join(",")).join("\n");
+  const blob = new Blob([`${header}\n${body}`], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function downloadFile(path, filename = "documento.pdf") {
+  const headers = {};
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const response = await fetch(`${normalizeApiBase(state.apiBase)}${path}`, { headers });
+  if (response.status === 401) {
+    logout();
+    throw new Error("Sesion expirada");
+  }
+  if (!response.ok) throw new Error(`No se pudo descargar el archivo (${response.status}).`);
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = decodeURIComponent(match?.[1] || filename);
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function lineInput(row, name) {
+  return row.querySelector(`[name="${name}"]`);
+}
+
+function readVentaDetalles(form) {
+  const detalles = Array.from(form.querySelectorAll("[data-venta-line]")).map(row => ({
+    productoId: lineInput(row, "productoId")?.value,
+    cantidad: Number(lineInput(row, "cantidad")?.value || 0),
+    precioUnitario: Number(lineInput(row, "precioUnitario")?.value || 0),
+    descuento: Number(lineInput(row, "descuento")?.value || 0),
+    pricingStrategy: lineInput(row, "pricingStrategy")?.value || "normal"
+  })).filter(x => x.productoId && x.cantidad > 0);
+  if (!detalles.length) throw new Error("Agrega al menos un producto a la venta.");
+  return detalles;
+}
+
+function readCompraDetalles(form) {
+  const detalles = Array.from(form.querySelectorAll("[data-compra-line]")).map(row => ({
+    productoId: lineInput(row, "productoId")?.value,
+    cantidad: Number(lineInput(row, "cantidad")?.value || 0),
+    precioCompra: Number(lineInput(row, "precioCompra")?.value || 0)
+  })).filter(x => x.productoId && x.cantidad > 0);
+  if (!detalles.length) throw new Error("Agrega al menos un producto a la compra.");
+  return detalles;
+}
+
+function wireLineItems(containerId, buttonId, rowHtml, priceField) {
+  const container = document.getElementById(containerId);
+  const button = document.getElementById(buttonId);
+  if (!container || !button) return;
+
+  const wire = () => {
+    container.querySelectorAll("[data-remove-line]").forEach(btn => btn.onclick = () => {
+      if (container.children.length > 1) btn.closest(".line-item").remove();
+    });
+    container.querySelectorAll("[data-product-select]").forEach(select => select.onchange = () => fillLinePrice(select, priceField));
+  };
+
+  button.onclick = () => {
+    container.insertAdjacentHTML("beforeend", rowHtml());
+    wire();
+  };
+  wire();
+}
+
+function fillLinePrice(select, field) {
+  const producto = findProducto(select.value);
+  const row = select.closest(".line-item");
+  const input = row?.querySelector(`[name="${field}"]`);
+  if (producto && input && !Number(input.value)) input.value = Number(field === "precioCompra" ? producto.precioCompra : producto.precioVentaSugerido || 0);
+}
+
+function compraLineHtml(detail = {}) {
+  return `
+    <div class="line-item" data-compra-line>
+      <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
+      <label>Cantidad<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
+      <label>Precio compra<input name="precioCompra" type="number" step="0.0001" value="${esc(detail.precioCompra ?? "")}" required></label>
+      <button type="button" class="danger" data-remove-line>Quitar</button>
+    </div>
+  `;
+}
+
+function ventaLineHtml(detail = {}) {
+  return `
+    <div class="line-item" data-venta-line>
+      <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
+      <label>Cantidad<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
+      <label>Precio unitario<input name="precioUnitario" type="number" step="0.0001" value="${esc(detail.precioUnitario ?? "")}" required></label>
+      <label>Descuento<input name="descuento" type="number" step="0.0001" value="${esc(detail.descuento ?? 0)}"></label>
+      <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+      <button type="button" class="danger" data-remove-line>Quitar</button>
+    </div>
+  `;
+}
+
 async function loadCommon() {
   const [clientes, proveedores, productos, inventario, compras, ventas, deudas] = await Promise.all([
-    api("/api/clientes"),
-    api("/api/proveedores"),
-    api("/api/productos"),
-    api("/api/inventario"),
-    api("/api/compras"),
-    api("/api/ventas"),
-    api("/api/cobros/deudas")
+    safeApi("/api/clientes", []),
+    safeApi("/api/proveedores", []),
+    safeApi("/api/productos", []),
+    safeApi("/api/inventario", []),
+    safeApi("/api/compras", []),
+    safeApi("/api/ventas", []),
+    safeApi("/api/cobros/deudas", [])
   ]);
   Object.assign(state.cache, { clientes, proveedores, productos, inventario, compras, ventas, deudas });
 }
@@ -340,6 +518,9 @@ function renderDashboard() {
   const deuda = state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   const bajo = state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo));
   const ventas = state.cache.ventas.filter(x => x.estado !== 4);
+  const ventasPendientes = state.cache.ventas.filter(x => x.estado === 1).length;
+  const comprasTransito = state.cache.compras.filter(x => x.estado === 2).length;
+  const deudasVencidas = state.cache.deudas.filter(x => x.estado === 4 || (x.fechaVencimiento && date(x.fechaVencimiento) < today())).length;
   const vendido = ventas.reduce((sum, x) => sum + Number(x.total || 0), 0);
   renderShell(`
     <section class="kpi-grid">
@@ -347,6 +528,10 @@ function renderDashboard() {
       <div class="kpi"><span>Total vendido</span><strong>${money(vendido)}</strong></div>
       <div class="kpi"><span>Deuda pendiente</span><strong>${money(deuda)}</strong></div>
       <div class="kpi"><span>Bajo stock</span><strong>${bajo.length}</strong></div>
+      <div class="kpi"><span>Ventas sin confirmar</span><strong>${ventasPendientes}</strong></div>
+      <div class="kpi"><span>Compras en transito</span><strong>${comprasTransito}</strong></div>
+      <div class="kpi"><span>Deudas vencidas</span><strong>${deudasVencidas}</strong></div>
+      <div class="kpi"><span>Productos activos</span><strong>${productosActivos().length}</strong></div>
     </section>
     <section class="layout">
       <div class="panel">
@@ -380,6 +565,13 @@ function findProducto(id) { return state.cache.productos.find(x => x.id === id);
 function productosActivos() { return state.cache.productos.filter(x => x.estado === 1); }
 
 function renderClientes() {
+  const clientes = filterRows("clientes", state.cache.clientes, ["nombreRazonSocial", "ciNit", "telefono", "ciudad"]);
+  const page = paginate("clientes", clientes);
+  const selected = state.selectedClienteId ? findCliente(state.selectedClienteId) : null;
+  const historialVentas = selected ? state.cache.ventas.filter(x => x.clienteId === selected.id) : [];
+  const historialDeudas = selected ? state.cache.deudas.filter(x => x.clienteId === selected.id) : [];
+  const totalCompras = historialVentas.reduce((sum, x) => sum + Number(x.total || 0), 0);
+  const saldo = historialDeudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   renderShell(`
     <section class="layout">
       <div class="panel">
@@ -397,18 +589,49 @@ function renderClientes() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Clientes</h3></div>
+        <div class="panel-header"><h3>Clientes</h3>${searchBox("clientes", "Buscar cliente, CI/NIT, telefono")}</div>
         ${table([
           { label: "Nombre", key: "nombreRazonSocial" },
           { label: "CI/NIT", key: "ciNit" },
           { label: "Telefono", key: "telefono" },
           { label: "Ciudad", key: "ciudad" },
           { label: "Deuda", render: x => money(x.deudaTotal) }
-        ], state.cache.clientes, row => `<button data-delete-cliente="${row.id}" class="danger">Inactivar</button>`)}
+        ], page.rows, row => `
+          <div class="split-actions">
+            <button data-historial-cliente="${row.id}">Historial</button>
+            <button data-delete-cliente="${row.id}" class="danger">Inactivar</button>
+          </div>
+        `)}
+        ${pager("clientes", page)}
+      </div>
+      <div class="panel full-panel">
+        <div class="panel-header"><h3>Historial del cliente</h3></div>
+        <div class="panel-body">
+          ${selected ? `
+            <div class="detail-grid">
+              <div><span>Cliente</span><strong>${esc(selected.nombreRazonSocial)}</strong></div>
+              <div><span>Total comprado</span><strong>${money(totalCompras)}</strong></div>
+              <div><span>Saldo pendiente</span><strong>${money(saldo)}</strong></div>
+              <div><span>Ventas</span><strong>${historialVentas.length}</strong></div>
+            </div>
+            ${table([
+              { label: "Fecha", render: x => date(x.fecha) },
+              { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
+              { label: "Total", render: x => money(x.total) },
+              { label: "Pagado", render: x => money(x.montoPagado) },
+              { label: "Saldo", render: x => money(x.saldoPendiente) }
+            ], historialVentas)}
+          ` : `<div class="empty">Selecciona un cliente para ver sus compras, deuda y pagos pendientes.</div>`}
+        </div>
       </div>
     </section>
   `, "Clientes");
+  wireListControls("clientes", renderClientes);
   document.getElementById("clienteForm").onsubmit = submitJson("/api/clientes", async () => { await loadCommon(); render(); });
+  document.querySelectorAll("[data-historial-cliente]").forEach(btn => btn.onclick = () => {
+    state.selectedClienteId = btn.dataset.historialCliente;
+    renderClientes();
+  });
   document.querySelectorAll("[data-delete-cliente]").forEach(btn => btn.onclick = () => safe(async () => {
     await api(`/api/clientes/${btn.dataset.deleteCliente}`, { method: "DELETE" });
     await loadCommon();
@@ -417,6 +640,11 @@ function renderClientes() {
 }
 
 function renderProveedores() {
+  const proveedores = filterRows("proveedores", state.cache.proveedores, ["nombre", "lugarOrigen", "telefono", "tipoMadera"]);
+  const page = paginate("proveedores", proveedores);
+  const selected = state.selectedProveedorId ? findProveedor(state.selectedProveedorId) : null;
+  const historialCompras = selected ? state.cache.compras.filter(x => x.proveedorId === selected.id) : [];
+  const totalCompras = historialCompras.reduce((sum, x) => sum + Number(x.totalProductos || 0) + Number(x.costoTransporte || 0) + Number(x.otrosCostos || 0), 0);
   renderShell(`
     <section class="layout">
       <div class="panel">
@@ -434,20 +662,48 @@ function renderProveedores() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Proveedores</h3></div>
+        <div class="panel-header"><h3>Proveedores</h3>${searchBox("proveedores", "Buscar proveedor u origen")}</div>
         ${table([
           { label: "Nombre", key: "nombre" },
           { label: "Origen", key: "lugarOrigen" },
           { label: "Telefono", key: "telefono" },
           { label: "Madera", key: "tipoMadera" }
-        ], state.cache.proveedores)}
+        ], page.rows, row => `<button data-historial-proveedor="${row.id}">Historial</button>`)}
+        ${pager("proveedores", page)}
+      </div>
+      <div class="panel full-panel">
+        <div class="panel-header"><h3>Historial del proveedor</h3></div>
+        <div class="panel-body">
+          ${selected ? `
+            <div class="detail-grid">
+              <div><span>Proveedor</span><strong>${esc(selected.nombre)}</strong></div>
+              <div><span>Origen</span><strong>${esc(selected.lugarOrigen)}</strong></div>
+              <div><span>Compras</span><strong>${historialCompras.length}</strong></div>
+              <div><span>Total comprado</span><strong>${money(totalCompras)}</strong></div>
+            </div>
+            ${table([
+              { label: "Fecha", render: x => date(x.fechaCompra) },
+              { label: "Origen", key: "origen" },
+              { label: "Estado", render: x => badge(["", "Pendiente", "En transito", "Recibida", "Cancelada"][x.estado] || x.estado, x.estado === 3 ? "" : "warn") },
+              { label: "Productos", render: x => money(x.totalProductos) },
+              { label: "Costos", render: x => money(Number(x.costoTransporte || 0) + Number(x.otrosCostos || 0)) }
+            ], historialCompras)}
+          ` : `<div class="empty">Selecciona un proveedor para ver las compras registradas.</div>`}
+        </div>
       </div>
     </section>
   `, "Proveedores");
+  wireListControls("proveedores", renderProveedores);
   document.getElementById("proveedorForm").onsubmit = submitJson("/api/proveedores", async () => { await loadCommon(); render(); });
+  document.querySelectorAll("[data-historial-proveedor]").forEach(btn => btn.onclick = () => {
+    state.selectedProveedorId = btn.dataset.historialProveedor;
+    renderProveedores();
+  });
 }
 
 function renderProductos() {
+  const productos = filterRows("productos", state.cache.productos, ["nombreComercial", "tipoMadera", "calidad"]);
+  const page = paginate("productos", productos);
   renderShell(`
     <section class="layout">
       <div class="panel">
@@ -475,7 +731,7 @@ function renderProductos() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Productos</h3></div>
+        <div class="panel-header"><h3>Productos</h3>${searchBox("productos", "Buscar producto o madera")}</div>
         ${table([
           { label: "Nombre", key: "nombreComercial" },
           { label: "Tipo", key: "tipoMadera" },
@@ -483,16 +739,18 @@ function renderProductos() {
           { label: "Venta", render: x => money(x.precioVentaSugerido) },
           { label: "Minimo", render: x => money(x.stockMinimo) },
           { label: "Estado", render: x => x.estado === 1 ? badge("Activo") : badge("Inactivo", "bad") }
-        ], state.cache.productos, row => `
+        ], page.rows, row => `
           <div class="split-actions">
             <button data-edit-producto="${row.id}">Editar</button>
             <button data-delete-producto="${row.id}" class="danger">Borrar</button>
           </div>
         `)}
+        ${pager("productos", page)}
       </div>
     </section>
   `, "Productos");
 
+  wireListControls("productos", renderProductos);
   const form = document.getElementById("productoForm");
   form.onsubmit = async event => {
     event.preventDefault();
@@ -550,43 +808,73 @@ function renderInventario() {
 }
 
 function renderCompras() {
+  const compras = filterRows("compras", state.cache.compras, [
+    "origen",
+    x => findProveedor(x.proveedorId)?.nombre,
+    x => ["", "Pendiente", "En transito", "Recibida", "Cancelada"][x.estado] || x.estado
+  ]);
+  const page = paginate("compras", compras);
   renderShell(`
     <section class="layout">
       <div class="panel">
         <div class="panel-header"><h3>Compra</h3></div>
         <div class="panel-body">
           <form id="compraForm" class="grid">
+            <input type="hidden" name="id">
             <label class="full">Proveedor<select name="proveedorId" required>${entityOptions(state.cache.proveedores, "nombre")}</select></label>
             <label>Origen<input name="origen" value="Beni" required></label>
             <label>Fecha compra<input name="fechaCompra" type="date" value="${today()}"></label>
             <label>Fecha llegada<input name="fechaEstimadaLlegada" type="date"></label>
             <label>Transporte<input name="costoTransporte" type="number" step="0.0001" value="0"></label>
             <label>Otros costos<input name="otrosCostos" type="number" step="0.0001" value="0"></label>
-            <label class="full">Producto<select name="productoId" required>${entityOptions(productosActivos(), "nombreComercial")}</select></label>
-            <label>Cantidad<input name="cantidad" type="number" step="0.0001" required></label>
-            <label>Precio compra<input name="precioCompra" type="number" step="0.0001" required></label>
+            <div class="full line-section">
+              <div class="line-header">
+                <strong>Productos comprados</strong>
+                <button type="button" id="addCompraLine">Agregar producto</button>
+              </div>
+              <div id="compraLines">${compraLineHtml()}</div>
+            </div>
             <label class="full">Observaciones<input name="observaciones"></label>
-            <div class="actions full"><button class="primary">Registrar</button></div>
+            <div class="actions full">
+              <button class="primary">Guardar compra</button>
+              <button type="button" id="nuevaCompra">Nueva</button>
+            </div>
           </form>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Compras</h3></div>
+        <div class="panel-header"><h3>Compras</h3>${searchBox("compras", "Buscar compra, proveedor u origen")}</div>
         ${table([
           { label: "Proveedor", render: x => esc(findProveedor(x.proveedorId)?.nombre || x.proveedorId) },
           { label: "Origen", key: "origen" },
           { label: "Estado", render: x => badge(["", "Pendiente", "En transito", "Recibida", "Cancelada"][x.estado] || x.estado, x.estado === 3 ? "" : "warn") },
           { label: "Fecha", render: x => date(x.fechaCompra) },
           { label: "Total", render: x => money(x.totalProductos + x.costoTransporte + x.otrosCostos) }
-        ], state.cache.compras, row => row.estado === 3 ? "" : `<button data-recibir-compra="${row.id}">Recibir</button>`)}
+        ], page.rows, row => `
+          <div class="split-actions">
+            ${row.estado === 1 ? `<button data-edit-compra="${row.id}">Editar</button>` : ""}
+            ${row.estado === 3 ? "" : `<button data-recibir-compra="${row.id}">Recibir</button>`}
+          </div>
+        `)}
+        ${pager("compras", page)}
       </div>
     </section>
   `, "Compras");
 
+  wireListControls("compras", renderCompras);
+  wireLineItems("compraLines", "addCompraLine", compraLineHtml, "precioCompra");
+  const compraForm = document.getElementById("compraForm");
+  document.getElementById("nuevaCompra").onclick = () => {
+    compraForm.reset();
+    compraForm.elements.id.value = "";
+    document.getElementById("compraLines").innerHTML = compraLineHtml();
+    wireLineItems("compraLines", "addCompraLine", compraLineHtml, "precioCompra");
+  };
   document.getElementById("compraForm").onsubmit = async event => {
     event.preventDefault();
     await safe(async () => {
       const data = formData(event.currentTarget);
+      const id = data.id;
       const body = {
         proveedorId: data.proveedorId,
         origen: data.origen,
@@ -595,13 +883,29 @@ function renderCompras() {
         costoTransporte: data.costoTransporte || 0,
         otrosCostos: data.otrosCostos || 0,
         observaciones: data.observaciones,
-        detalles: [{ productoId: data.productoId, cantidad: data.cantidad, precioCompra: data.precioCompra }]
+        detalles: readCompraDetalles(event.currentTarget)
       };
-      await api("/api/compras", { method: "POST", body: JSON.stringify(body) });
+      if (id) await api(`/api/compras/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      else await api("/api/compras", { method: "POST", body: JSON.stringify(body) });
       await loadCommon();
       render();
-    }, "Compra registrada");
+    }, "Compra guardada");
   };
+  document.querySelectorAll("[data-edit-compra]").forEach(btn => btn.onclick = () => {
+    const compra = state.cache.compras.find(x => x.id === btn.dataset.editCompra);
+    if (!compra) return;
+    compraForm.elements.id.value = compra.id;
+    compraForm.elements.proveedorId.value = compra.proveedorId;
+    compraForm.elements.origen.value = compra.origen || "";
+    compraForm.elements.fechaCompra.value = date(compra.fechaCompra);
+    compraForm.elements.fechaEstimadaLlegada.value = date(compra.fechaEstimadaLlegada) === "-" ? "" : date(compra.fechaEstimadaLlegada);
+    compraForm.elements.costoTransporte.value = compra.costoTransporte || 0;
+    compraForm.elements.otrosCostos.value = compra.otrosCostos || 0;
+    compraForm.elements.observaciones.value = compra.observaciones || "";
+    document.getElementById("compraLines").innerHTML = (compra.detalles?.length ? compra.detalles : [{}]).map(compraLineHtml).join("");
+    wireLineItems("compraLines", "addCompraLine", compraLineHtml, "precioCompra");
+    toast("Compra cargada para editar");
+  });
   document.querySelectorAll("[data-recibir-compra]").forEach(btn => btn.onclick = () => safe(async () => {
     await api(`/api/compras/${btn.dataset.recibirCompra}/recibir`, { method: "PUT" });
     await loadCommon();
@@ -610,65 +914,96 @@ function renderCompras() {
 }
 
 function renderVentas() {
+  const ventas = filterRows("ventas", state.cache.ventas, [
+    x => findCliente(x.clienteId)?.nombreRazonSocial,
+    x => ventaEstados[x.estado] || x.estado,
+    x => date(x.fecha)
+  ]);
+  const page = paginate("ventas", ventas);
   renderShell(`
     <section class="layout">
       <div class="panel">
         <div class="panel-header"><h3>Venta</h3></div>
         <div class="panel-body">
           <form id="ventaForm" class="grid">
+            <input type="hidden" name="id">
             <label class="full">Cliente<select name="clienteId" required>${entityOptions(state.cache.clientes, "nombreRazonSocial")}</select></label>
             <label>Metodo<select name="metodoPago">${options(metodosPago, 5)}</select></label>
             <label>Vencimiento<input name="fechaVencimiento" type="date"></label>
-            <label class="full">Producto<select name="productoId" required>${entityOptions(productosActivos(), "nombreComercial")}</select></label>
-            <label>Cantidad<input name="cantidad" type="number" step="0.0001" required></label>
-            <label>Precio unitario<input name="precioUnitario" type="number" step="0.0001" required></label>
-            <label>Descuento<input name="descuento" type="number" step="0.0001" value="0"></label>
-            <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+            <div class="full line-section">
+              <div class="line-header">
+                <strong>Productos vendidos</strong>
+                <button type="button" id="addVentaLine">Agregar producto</button>
+              </div>
+              <div id="ventaLines">${ventaLineHtml()}</div>
+            </div>
             <label class="full">Observaciones<input name="observaciones"></label>
-            <div class="actions full"><button class="primary">Crear venta</button></div>
+            <div class="actions full">
+              <button class="primary">Guardar venta</button>
+              <button type="button" id="nuevaVenta">Nueva</button>
+            </div>
           </form>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Ventas</h3></div>
+        <div class="panel-header"><h3>Ventas</h3>${searchBox("ventas", "Buscar venta, cliente o estado")}</div>
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Fecha", render: x => date(x.fecha) },
           { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
           { label: "Total", render: x => money(x.total) },
           { label: "Saldo", render: x => money(x.saldoPendiente) }
-        ], state.cache.ventas, row => `
+        ], page.rows, row => `
           <div class="split-actions">
+            ${row.estado === 1 ? `<button data-edit-venta="${row.id}">Editar</button>` : ""}
             ${row.estado === 1 ? `<button data-confirmar-venta="${row.id}">Confirmar</button>` : ""}
-            ${row.estado !== 4 ? `<button data-anular-venta="${row.id}" class="danger">Anular</button>` : ""}
+            ${isGestion() && row.estado !== 4 ? `<button data-anular-venta="${row.id}" class="danger">Anular</button>` : ""}
           </div>
         `)}
+        ${pager("ventas", page)}
       </div>
     </section>
   `, "Ventas");
 
+  wireListControls("ventas", renderVentas);
+  wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
+  const ventaForm = document.getElementById("ventaForm");
+  document.getElementById("nuevaVenta").onclick = () => {
+    ventaForm.reset();
+    ventaForm.elements.id.value = "";
+    document.getElementById("ventaLines").innerHTML = ventaLineHtml();
+    wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
+  };
   document.getElementById("ventaForm").onsubmit = async event => {
     event.preventDefault();
     await safe(async () => {
       const data = formData(event.currentTarget);
+      const id = data.id;
       const body = {
         clienteId: data.clienteId,
         metodoPago: data.metodoPago,
         fechaVencimiento: toIsoDate(data.fechaVencimiento),
         observaciones: data.observaciones,
-        detalles: [{
-          productoId: data.productoId,
-          cantidad: data.cantidad,
-          precioUnitario: data.precioUnitario,
-          descuento: data.descuento || 0,
-          pricingStrategy: data.pricingStrategy || "normal"
-        }]
+        detalles: readVentaDetalles(event.currentTarget)
       };
-      await api("/api/ventas", { method: "POST", body: JSON.stringify(body) });
+      if (id) await api(`/api/ventas/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      else await api("/api/ventas", { method: "POST", body: JSON.stringify(body) });
       await loadCommon();
       render();
-    }, "Venta creada");
+    }, "Venta guardada");
   };
+  document.querySelectorAll("[data-edit-venta]").forEach(btn => btn.onclick = () => {
+    const venta = state.cache.ventas.find(x => x.id === btn.dataset.editVenta);
+    if (!venta) return;
+    ventaForm.elements.id.value = venta.id;
+    ventaForm.elements.clienteId.value = venta.clienteId;
+    ventaForm.elements.metodoPago.value = venta.metodoPago || 5;
+    ventaForm.elements.fechaVencimiento.value = date(venta.fechaVencimiento) === "-" ? "" : date(venta.fechaVencimiento);
+    ventaForm.elements.observaciones.value = venta.observaciones || "";
+    document.getElementById("ventaLines").innerHTML = (venta.detalles?.length ? venta.detalles : [{}]).map(ventaLineHtml).join("");
+    wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
+    toast("Venta cargada para editar");
+  });
   document.querySelectorAll("[data-confirmar-venta]").forEach(btn => btn.onclick = async () => {
     const monto = Number(prompt("Monto pagado", "0") || 0);
     await safe(async () => {
@@ -688,6 +1023,12 @@ function renderVentas() {
 }
 
 function renderCobros() {
+  const deudas = filterRows("cobros", state.cache.deudas, [
+    x => findCliente(x.clienteId)?.nombreRazonSocial,
+    x => x.ventaId,
+    x => date(x.fechaVencimiento)
+  ]);
+  const page = paginate("cobros", deudas);
   renderShell(`
     <section class="layout">
       <div class="panel">
@@ -703,17 +1044,19 @@ function renderCobros() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Deudas</h3></div>
+        <div class="panel-header"><h3>Deudas</h3>${searchBox("cobros", "Buscar cliente o venta")}</div>
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Venta", key: "ventaId" },
           { label: "Total", render: x => money(x.montoTotal) },
           { label: "Saldo", render: x => money(x.saldoPendiente) },
           { label: "Vence", render: x => date(x.fechaVencimiento) }
-        ], state.cache.deudas)}
+        ], page.rows)}
+        ${pager("cobros", page)}
       </div>
     </section>
   `, "Cobros");
+  wireListControls("cobros", renderCobros);
   document.getElementById("pagoForm").onsubmit = submitJson("/api/cobros/pagos", async () => { await loadCommon(); render(); });
 }
 
@@ -746,12 +1089,23 @@ function renderCaja() {
 
 async function loadCaja(desde, hasta) {
   const rows = await safe(() => api(`/api/caja/movimientos?desde=${desde}&hasta=${hasta}`), "");
-  document.getElementById("cajaResult").innerHTML = table([
+  const ingresos = (rows || []).filter(x => x.tipo === 1).reduce((sum, x) => sum + Number(x.monto || 0), 0);
+  const egresos = (rows || []).filter(x => x.tipo === 2).reduce((sum, x) => sum + Number(x.monto || 0), 0);
+  document.getElementById("cajaResult").innerHTML = `
+    <div class="kpi-grid compact">
+      <div class="kpi"><span>Ingresos automaticos/manuales</span><strong>${money(ingresos)}</strong></div>
+      <div class="kpi"><span>Egresos</span><strong>${money(egresos)}</strong></div>
+      <div class="kpi"><span>Saldo del periodo</span><strong>${money(ingresos - egresos)}</strong></div>
+      <div class="kpi"><span>Movimientos</span><strong>${(rows || []).length}</strong></div>
+    </div>
+    <p class="hint">Los cobros iniciales de ventas y pagos de cuentas por cobrar entran a caja automaticamente. Aqui registra solo ingresos o egresos manuales.</p>
+    ${table([
     { label: "Fecha", render: x => date(x.fecha) },
     { label: "Tipo", render: x => x.tipo === 1 ? badge("Ingreso") : badge("Egreso", "warn") },
     { label: "Monto", render: x => money(x.monto) },
     { label: "Concepto", key: "concepto" }
-  ], rows || []);
+  ], rows || [])}
+  `;
 }
 
 function renderTransportes() {
@@ -825,7 +1179,7 @@ function renderDocumentos() {
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Estado", render: x => ventaEstados[x.estado] || x.estado },
           { label: "Total", render: x => money(x.total) }
-        ], state.cache.ventas)}
+        ], state.cache.ventas, row => `<button data-descargar-pdf="${row.id}">Descargar PDF</button>`)}
       </div>
     </section>
   `, "Documentos");
@@ -833,8 +1187,21 @@ function renderDocumentos() {
     event.preventDefault();
     const data = formData(event.currentTarget);
     const documento = await safe(() => api(`/api/documentos/venta/${data.ventaId}/generar`, { method: "POST" }), "Documento generado");
-    document.getElementById("documentoResult").innerHTML = `<strong>${esc(documento.numero)}</strong><br>${esc(documento.rutaArchivo)}`;
+    document.getElementById("documentoResult").innerHTML = `
+      <strong>${esc(documento.numero)}</strong><br>
+      <span>${esc(documento.rutaArchivo)}</span>
+      <div class="actions"><button type="button" data-descargar-pdf="${data.ventaId}">Descargar PDF</button></div>
+    `;
+    wirePdfDownloads();
   };
+  wirePdfDownloads();
+}
+
+function wirePdfDownloads() {
+  document.querySelectorAll("[data-descargar-pdf]").forEach(btn => btn.onclick = () => safe(
+    () => downloadFile(`/api/documentos/venta/${btn.dataset.descargarPdf}/descargar`, "comprobante-sicomoro.pdf"),
+    "PDF descargado"
+  ));
 }
 
 function renderReportes() {
@@ -851,6 +1218,7 @@ function renderReportes() {
               <button type="button" id="reporteCaja">Caja</button>
               <button type="button" id="reporteBajo">Inventario bajo</button>
               <button type="button" id="reporteDeudores">Deudores</button>
+              <button type="button" id="exportarReporte">Exportar ultimo CSV</button>
             </div>
           </form>
         </div>
@@ -862,24 +1230,75 @@ function renderReportes() {
     </section>
   `, "Reportes");
   const form = document.getElementById("reportForm");
+  let ultimoReporte = null;
   form.onsubmit = async event => {
     event.preventDefault();
     const data = formData(form);
     const r = await safe(() => api(`/api/reportes/ventas?desde=${data.desde}&hasta=${data.hasta}`), "");
+    ultimoReporte = {
+      filename: `ventas-${data.desde}-${data.hasta}.csv`,
+      rows: [r],
+      columns: [
+        { label: "Desde", value: x => date(x.desde) },
+        { label: "Hasta", value: x => date(x.hasta) },
+        { label: "Cantidad", key: "cantidadVentas" },
+        { label: "Total", key: "totalVentas" },
+        { label: "Pagado", key: "totalPagado" },
+        { label: "Saldo", key: "saldoPendiente" }
+      ]
+    };
     reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Cantidad</span><strong>${r.cantidadVentas}</strong></div><div class="kpi"><span>Total</span><strong>${money(r.totalVentas)}</strong></div><div class="kpi"><span>Pagado</span><strong>${money(r.totalPagado)}</strong></div><div class="kpi"><span>Saldo</span><strong>${money(r.saldoPendiente)}</strong></div></div>`);
   };
   document.getElementById("reporteCaja").onclick = async () => {
     const data = formData(form);
     const r = await safe(() => api(`/api/reportes/caja?desde=${data.desde}&hasta=${data.hasta}`), "");
+    ultimoReporte = {
+      filename: `caja-${data.desde}-${data.hasta}.csv`,
+      rows: [r],
+      columns: [
+        { label: "Desde", value: x => date(x.desde) },
+        { label: "Hasta", value: x => date(x.hasta) },
+        { label: "Ingresos", key: "ingresos" },
+        { label: "Egresos", key: "egresos" },
+        { label: "Saldo", key: "saldo" }
+      ]
+    };
     reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Ingresos</span><strong>${money(r.ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${money(r.egresos)}</strong></div><div class="kpi"><span>Saldo</span><strong>${money(r.saldo)}</strong></div></div>`);
   };
   document.getElementById("reporteBajo").onclick = async () => {
     const rows = await safe(() => api("/api/reportes/inventario-bajo"), "");
+    ultimoReporte = {
+      filename: `inventario-bajo-${today()}.csv`,
+      rows,
+      columns: [
+        { label: "Producto", key: "producto" },
+        { label: "Stock", key: "stockActual" },
+        { label: "Minimo", key: "stockMinimo" },
+        { label: "Ubicacion", key: "ubicacionInterna" }
+      ]
+    };
     reportHtml(table([{ label: "Producto", key: "producto" }, { label: "Stock", render: x => money(x.stockActual) }, { label: "Minimo", render: x => money(x.stockMinimo) }], rows));
   };
   document.getElementById("reporteDeudores").onclick = async () => {
     const rows = await safe(() => api("/api/reportes/clientes-deudores"), "");
+    ultimoReporte = {
+      filename: `clientes-deudores-${today()}.csv`,
+      rows,
+      columns: [
+        { label: "Cliente", key: "nombreRazonSocial" },
+        { label: "Deuda", key: "deudaTotal" },
+        { label: "Telefono", key: "telefono" },
+        { label: "Ciudad", key: "ciudad" }
+      ]
+    };
     reportHtml(table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => money(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], rows));
+  };
+  document.getElementById("exportarReporte").onclick = () => {
+    if (!ultimoReporte) {
+      toast("Primero genera un reporte.");
+      return;
+    }
+    downloadCsv(ultimoReporte.filename, ultimoReporte.rows, ultimoReporte.columns);
   };
 }
 
@@ -967,6 +1386,12 @@ function renderUsuarios() {
             <label class="full">Notas<textarea name="notas"></textarea></label>
             <div class="actions full"><button class="primary">Crear usuario</button></div>
           </form>
+          <hr class="form-separator">
+          <form id="resetPasswordForm" class="grid" autocomplete="off">
+            <label class="full">Usuario<select name="usuarioId" required>${entityOptions(state.cache.usuarios.map(u => ({ ...u, nombre: `${u.nombre} - ${u.email}` })), "nombre")}</select></label>
+            <label class="full">Nueva contrasena temporal<input name="nuevaPassword" type="password" minlength="8" required></label>
+            <div class="actions full"><button>Resetear contrasena</button></div>
+          </form>
         </div>
       </div>
       <div class="panel">
@@ -1005,6 +1430,18 @@ function renderUsuarios() {
       render();
     }, "Usuario eliminado");
   });
+
+  document.getElementById("resetPasswordForm").onsubmit = async event => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    await safe(async () => {
+      await api(`/api/usuarios/${data.usuarioId}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ nuevaPassword: data.nuevaPassword })
+      });
+      event.currentTarget.reset();
+    }, "Contrasena reseteada");
+  };
 }
 
 function renderNotificaciones() {

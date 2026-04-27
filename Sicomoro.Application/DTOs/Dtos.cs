@@ -10,8 +10,10 @@ public sealed record MovimientoInventarioDto(Guid Id, DateTime Fecha, Guid Produ
 public sealed record TransporteDto(Guid Id, string? Camion, string? Chofer, string? Placa, string LugarOrigen, DateTime? FechaSalida, DateTime? FechaLlegada, decimal CostoTransporte, EstadoTransporte Estado, string? Observaciones, Guid? CompraId);
 public sealed record CompraDetalleInput(Guid ProductoId, decimal Cantidad, decimal PrecioCompra);
 public sealed record VentaDetalleInput(Guid ProductoId, decimal Cantidad, decimal? PrecioUnitario, decimal Descuento, string PricingStrategy = "normal");
-public sealed record CompraDto(Guid Id, Guid ProveedorId, string Origen, EstadoCompra Estado, DateTime FechaCompra, decimal TotalProductos, decimal CostoTransporte, decimal OtrosCostos);
-public sealed record VentaDto(Guid Id, Guid ClienteId, DateTime Fecha, EstadoVenta Estado, decimal Total, decimal MontoPagado, decimal SaldoPendiente);
+public sealed record CompraDetalleDto(Guid ProductoId, decimal Cantidad, decimal PrecioCompra);
+public sealed record VentaDetalleDto(Guid ProductoId, decimal Cantidad, decimal PrecioUnitario, decimal Descuento);
+public sealed record CompraDto(Guid Id, Guid ProveedorId, string Origen, EstadoCompra Estado, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal TotalProductos, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<CompraDetalleDto> Detalles);
+public sealed record VentaDto(Guid Id, Guid ClienteId, DateTime Fecha, EstadoVenta Estado, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, decimal Total, decimal MontoPagado, decimal SaldoPendiente, IReadOnlyCollection<VentaDetalleDto> Detalles);
 public sealed record CobroDto(Guid Id, Guid VentaId, Guid ClienteId, decimal MontoTotal, decimal SaldoPendiente, EstadoCobro Estado, DateTime? FechaVencimiento);
 public sealed record DocumentoDto(Guid Id, Guid VentaId, TipoDocumentoVenta Tipo, string Numero, string RutaArchivo, DateTime FechaGeneracion);
 public sealed record CajaMovimientoDto(Guid Id, DateTime Fecha, TipoCajaMovimiento Tipo, decimal Monto, string Concepto, Guid UsuarioId, Guid? VentaId, Guid? PagoId, Guid? CompraId);

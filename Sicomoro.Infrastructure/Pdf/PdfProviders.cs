@@ -8,10 +8,10 @@ namespace Sicomoro.Infrastructure.Pdf;
 
 public abstract class DocumentoPdfTemplate
 {
-    public byte[] Generar(Venta venta, string numero)
+    public byte[] Generar(Venta venta, string numero, Guid usuarioId)
     {
         var lineas = new List<string>();
-        AgregarEncabezado(lineas, numero);
+        AgregarEncabezado(lineas, numero, usuarioId);
         AgregarDatosCliente(lineas, venta);
         AgregarDetalle(lineas, venta);
         AgregarTotales(lineas, venta);
@@ -19,23 +19,28 @@ public abstract class DocumentoPdfTemplate
         return SimplePdfWriter.Write(lineas);
     }
 
-    protected virtual void AgregarEncabezado(List<string> lineas, string numero)
+    protected virtual void AgregarEncabezado(List<string> lineas, string numero, Guid usuarioId)
     {
         lineas.Add("Barraca Sicomoro");
+        lineas.Add("Comprobante interno de venta");
         lineas.Add($"Documento: {numero}");
         lineas.Add($"Fecha: {DateTime.UtcNow:yyyy-MM-dd HH:mm}");
+        lineas.Add($"Usuario generador: {usuarioId}");
+        lineas.Add("----------------------------------------");
     }
 
     protected virtual void AgregarDatosCliente(List<string> lineas, Venta venta)
     {
         lineas.Add($"Cliente: {venta.Cliente?.NombreRazonSocial ?? venta.ClienteId.ToString()}");
         lineas.Add($"CI/NIT: {venta.Cliente?.CiNit ?? "-"}");
+        lineas.Add("----------------------------------------");
     }
 
     protected abstract void AgregarDetalle(List<string> lineas, Venta venta);
 
     protected virtual void AgregarTotales(List<string> lineas, Venta venta)
     {
+        lineas.Add("----------------------------------------");
         lineas.Add($"Total: {venta.Total:N2}");
         lineas.Add($"Pagado: {venta.MontoPagado:N2}");
         lineas.Add($"Saldo: {venta.SaldoPendiente:N2}");
@@ -76,7 +81,7 @@ public sealed class PdfComprobanteProvider(IConfiguration configuration, IEmailS
         var basePath = configuration["Storage:DocumentosPath"] ?? Path.Combine(AppContext.BaseDirectory, "documentos");
         Directory.CreateDirectory(basePath);
         var path = Path.Combine(basePath, $"{numero}.pdf");
-        var bytes = new ComprobanteVentaPdf().Generar(venta, numero);
+        var bytes = new ComprobanteVentaPdf().Generar(venta, numero, usuarioId);
         await File.WriteAllBytesAsync(path, bytes, cancellationToken);
         return new DocumentoVenta(venta.Id, TipoDocumentoVenta.ComprobanteVenta, numero, path, usuarioId);
     }
@@ -142,4 +147,3 @@ internal static class SimplePdfWriter
         return $"({clean.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)")})";
     }
 }
-

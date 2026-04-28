@@ -1,3 +1,4 @@
+using Sicomoro.Application.DTOs;
 using Sicomoro.Domain.Entities;
 using Sicomoro.Domain.Enums;
 
@@ -74,4 +75,9 @@ public interface IBusinessAlertService
     Task PagoRegistradoAsync(Guid ventaId, string cliente, decimal monto, decimal saldo, CancellationToken cancellationToken = default);
     Task InventarioAjustadoAsync(string producto, decimal stockActual, decimal stockMinimo, string motivo, CancellationToken cancellationToken = default);
     Task VentaAnuladaAsync(Guid ventaId, string motivo, CancellationToken cancellationToken = default);
+}
+
+public interface ISistemaMantenimientoService
+{
+    Task<LimpiezaSistemaDto> ReiniciarDatosOperativosAsync(Guid? usuarioId, CancellationToken cancellationToken = default);
 }

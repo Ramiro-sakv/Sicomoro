@@ -1,7 +1,8 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.5.0-oficial";
+const APP_VERSION = "v1.5.1-oficial";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
+const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
 
 function shouldUseMobileLayout() {
@@ -266,16 +267,44 @@ async function safeApi(path, fallback = []) {
 }
 
 function requestOperationKey(actionName = "borrar") {
-  const value = prompt(`Codigo de seguridad para ${actionName}`);
-  if (!value) {
-    toast("Operacion cancelada");
-    return null;
-  }
-  return value.trim();
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h3>Codigo de seguridad</h3>
+        <p>Ingresa la clave para ${esc(actionName)}. El codigo no se mostrara en pantalla.</p>
+        <input name="operationKey" type="password" autocomplete="one-time-code" inputmode="numeric" placeholder="********">
+        <div class="actions">
+          <button type="button" class="primary" data-confirm-key>Confirmar</button>
+          <button type="button" data-cancel-key>Cancelar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const input = backdrop.querySelector("[name='operationKey']");
+    const close = value => {
+      backdrop.remove();
+      if (!value) toast("Operacion cancelada");
+      resolve(value ? value.trim() : null);
+    };
+
+    backdrop.querySelector("[data-confirm-key]").onclick = () => close(input.value);
+    backdrop.querySelector("[data-cancel-key]").onclick = () => close(null);
+    backdrop.onclick = event => {
+      if (event.target === backdrop) close(null);
+    };
+    input.onkeydown = event => {
+      if (event.key === "Enter") close(input.value);
+      if (event.key === "Escape") close(null);
+    };
+    setTimeout(() => input.focus(), 0);
+  });
 }
 
 async function deleteWithOperationKey(path, actionName = "borrar") {
-  const claveOperacion = requestOperationKey(actionName);
+  const claveOperacion = await requestOperationKey(actionName);
   if (!claveOperacion) return false;
   await api(path, { method: "DELETE", headers: { [OPERATION_KEY_HEADER]: claveOperacion } });
   return true;
@@ -2067,6 +2096,58 @@ function renderCatalogCard(item) {
   `;
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function catalogImageFileToDataUrl(file) {
+  if (!file) return "";
+  if (!file.type.startsWith("image/")) throw new Error("Selecciona una imagen valida.");
+  if (file.size > MAX_CATALOG_IMAGE_FILE_SIZE) throw new Error("La imagen es muy pesada. Usa una imagen menor a 8 MB.");
+
+  const source = await readFileAsDataUrl(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxSide = 1280;
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fffaf0";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      let output = canvas.toDataURL("image/jpeg", .82);
+      if (output.length > 1_400_000) output = canvas.toDataURL("image/jpeg", .68);
+      resolve(output);
+    };
+    img.onerror = () => reject(new Error("No se pudo procesar la imagen. Usa JPG, PNG o WEBP."));
+    img.src = source;
+  });
+}
+
+function updateCatalogImagePreview(value) {
+  const preview = document.getElementById("catalogImagePreview");
+  if (!preview) return;
+  if (!value) {
+    preview.innerHTML = "<span>Vista previa de imagen</span>";
+    preview.style.backgroundImage = "";
+    preview.classList.remove("has-image");
+    return;
+  }
+  preview.innerHTML = "";
+  preview.style.backgroundImage = `url("${String(value).replace(/"/g, "%22")}")`;
+  preview.classList.add("has-image");
+}
+
 function readAnuncioForm(form) {
   const data = formData(form);
   return {
@@ -2097,7 +2178,14 @@ function renderPublicidad() {
             <label class="full">Titulo<input name="titulo" placeholder="Tajibo seco 2x4 para estructura" required></label>
             <label class="full">Subtitulo<input name="subtitulo" placeholder="Ideal para obra fina y carpinteria"></label>
             <label class="full">Descripcion<textarea name="descripcion" placeholder="Describe calidad, medidas, disponibilidad y uso recomendado." required></textarea></label>
-            <label class="full">Imagen URL<input name="imagenUrl" placeholder="https://..."></label>
+            <div class="full catalog-image-box">
+              <label>Imagen por link<input name="imagenUrl" placeholder="https://..."></label>
+              <div class="catalog-image-actions">
+                <label class="file-picker">Cargar imagen desde dispositivo<input id="catalogImageFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                <button type="button" id="clearCatalogImageBtn">Quitar imagen</button>
+              </div>
+              <div id="catalogImagePreview" class="image-preview"><span>Vista previa de imagen</span></div>
+            </div>
             <label>Precio visible<input name="precioTexto" placeholder="Consultar precio"></label>
             <label>Etiqueta<input name="etiqueta" placeholder="Nuevo / Oferta / Seco"></label>
             <label>Texto del boton<input name="ctaTexto" placeholder="Solicitar cotizacion"></label>
@@ -2134,11 +2222,28 @@ function renderPublicidad() {
   `, "Publicidad");
 
   const form = document.getElementById("anuncioForm");
+  const imageFile = document.getElementById("catalogImageFile");
   document.getElementById("openCatalogBtn").onclick = () => navigatePath("/");
   document.getElementById("clearAnuncioBtn").onclick = () => {
     form.reset();
     form.elements.id.value = "";
     form.elements.orden.value = "0";
+    updateCatalogImagePreview("");
+  };
+  document.getElementById("clearCatalogImageBtn").onclick = () => {
+    form.elements.imagenUrl.value = "";
+    imageFile.value = "";
+    updateCatalogImagePreview("");
+  };
+  form.elements.imagenUrl.oninput = event => updateCatalogImagePreview(event.currentTarget.value.trim());
+  imageFile.onchange = async event => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    await safe(async () => {
+      const dataUrl = await catalogImageFileToDataUrl(file);
+      form.elements.imagenUrl.value = dataUrl;
+      updateCatalogImagePreview(dataUrl);
+    }, "Imagen cargada");
   };
   form.onsubmit = async event => {
     event.preventDefault();
@@ -2170,6 +2275,8 @@ function renderPublicidad() {
       ctaUrl: item.ctaUrl,
       orden: item.orden
     });
+    imageFile.value = "";
+    updateCatalogImagePreview(item.imagenUrl || "");
     form.elements.publicado.checked = Boolean(item.publicado);
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   });
@@ -2238,6 +2345,13 @@ function renderUsuarios() {
           </div>
         `)}
       </div>
+      <div class="panel full-panel danger-zone">
+        <div class="panel-header"><h3>Reiniciar datos del negocio</h3></div>
+        <div class="panel-body">
+          <p class="hint">Borra clientes, proveedores, productos, inventario, compras, ventas, cobros, caja, documentos, anuncios, notificaciones, auditoria y usuarios que no sean administradores. Se conserva tu cuenta administradora para volver a cargar todo desde cero.</p>
+          <button id="resetBusinessDataBtn" type="button" class="danger">Borrar datos y empezar de 0</button>
+        </div>
+      </div>
     </section>
   `, "Usuarios");
 
@@ -2271,6 +2385,27 @@ function renderUsuarios() {
       });
       event.currentTarget.reset();
     }, "Contrasena reseteada");
+  };
+
+  document.getElementById("resetBusinessDataBtn").onclick = async () => {
+    if (!confirm("Esto borrara definitivamente casi todos los datos del negocio y solo conservara administradores. Deseas continuar?")) return;
+    if (!confirm("Ultima confirmacion: esta accion no se puede deshacer desde la pagina.")) return;
+    const claveOperacion = await requestOperationKey("reiniciar datos del negocio");
+    if (!claveOperacion) return;
+    await safe(async () => {
+      const resultado = await api("/api/sistema/reiniciar-datos", {
+        method: "POST",
+        headers: { [OPERATION_KEY_HEADER]: claveOperacion },
+        body: "{}"
+      });
+      Object.keys(state.cache).forEach(key => {
+        if (Array.isArray(state.cache[key])) state.cache[key] = [];
+      });
+      state.cache.perfil = null;
+      state.cache.usuarios = await api("/api/usuarios");
+      toast(`Datos reiniciados. Admins conservados: ${resultado.administradoresConservados ?? "-"}`);
+      setView("dashboard");
+    }, "");
   };
 }
 

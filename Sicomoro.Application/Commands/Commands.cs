@@ -46,6 +46,7 @@ public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, T
 public sealed record CrearAnuncioCatalogoCommand(Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
 public sealed record ActualizarAnuncioCatalogoCommand(Guid Id, Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
 public sealed record EliminarAnuncioCatalogoCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
+public sealed record ReiniciarDatosSistemaCommand(string? ClaveOperacion = null) : IRequest<LimpiezaSistemaDto>;
 
 public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICurrentUserService currentUser, IPasswordHasher hasher, IUserCreationKeyValidator creationKeyValidator) :
     IRequestHandler<LoginCommand, AuthResponse>,
@@ -330,6 +331,21 @@ public sealed class WhatsAppPruebaHandler(IBusinessAlertService alertas) : IRequ
     {
         await alertas.EnviarPruebaAsync(request.Mensaje, cancellationToken);
         return true;
+    }
+}
+
+public sealed class SistemaAdminHandler(ISistemaMantenimientoService mantenimiento, ICurrentUserService currentUser, IUserCreationKeyValidator operationKeyValidator) :
+    IRequestHandler<ReiniciarDatosSistemaCommand, LimpiezaSistemaDto>
+{
+    public async Task<LimpiezaSistemaDto> Handle(ReiniciarDatosSistemaCommand request, CancellationToken cancellationToken)
+    {
+        if (currentUser.Rol != RolSistema.Administrador)
+            throw new UnauthorizedAccessException("Solo un administrador puede reiniciar los datos del sistema.");
+
+        if (!operationKeyValidator.IsValid(request.ClaveOperacion))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
+
+        return await mantenimiento.ReiniciarDatosOperativosAsync(currentUser.UserId, cancellationToken);
     }
 }
 

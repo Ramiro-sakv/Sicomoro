@@ -215,11 +215,97 @@ textarea {
   resize: vertical;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(12, 18, 15, .48);
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(0,0,0,.22);
+  padding: 20px;
+}
+
+.modal-card h3,
+.modal-card p {
+  margin: 0;
+}
+
+.modal-card p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.catalog-image-box {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfb;
+}
+
+.catalog-image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.file-picker input {
+  display: none;
+}
+
+.image-preview {
+  min-height: 170px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #c5d1cb;
+  border-radius: 8px;
+  background: #eef3f0;
+  color: var(--muted);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.image-preview.has-image {
+  border-style: solid;
+}
+
+.danger-zone {
+  border-color: #efc4c4;
 }
 
 .table-wrap {
@@ -1422,9 +1508,15 @@ html.mobile-device .public-contact {
 html.mobile-device .public-contact,
 html.mobile-device .public-section-head,
 html.mobile-device .catalog-meta,
-html.mobile-device .catalog-card-foot {
+html.mobile-device .catalog-card-foot,
+html.mobile-device .catalog-image-actions {
   align-items: stretch;
   flex-direction: column;
+}
+
+html.mobile-device .file-picker,
+html.mobile-device .catalog-image-actions button {
+  width: 100%;
 }
 
 html.mobile-device .catalog-card-media {

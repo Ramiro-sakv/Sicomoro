@@ -23,3 +23,23 @@ public sealed record UsuarioDto(Guid Id, string Nombre, string Email, RolSistema
 public sealed record AnuncioCatalogoDto(Guid Id, Guid? ProductoId, string? Producto, string? TipoMadera, string? UnidadMedida, decimal? StockActual, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado);
 public sealed record ReporteVentasDto(DateTime Desde, DateTime Hasta, int CantidadVentas, decimal TotalVentas, decimal TotalPagado, decimal SaldoPendiente);
 public sealed record ReporteCajaDto(DateTime Desde, DateTime Hasta, decimal Ingresos, decimal Egresos, decimal Saldo);
+public sealed record LimpiezaSistemaDto(
+    int Clientes,
+    int Proveedores,
+    int Productos,
+    int Inventario,
+    int MovimientosInventario,
+    int Compras,
+    int CompraDetalles,
+    int Transportes,
+    int Ventas,
+    int VentaDetalles,
+    int Cobros,
+    int Pagos,
+    int CajaMovimientos,
+    int DocumentosVenta,
+    int AnunciosCatalogo,
+    int Notificaciones,
+    int Auditoria,
+    int UsuariosEliminados,
+    int AdministradoresConservados);

@@ -572,6 +572,46 @@ th {
   line-height: 1.25;
 }
 
+.report-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.report-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f5faf7);
+  padding: 12px;
+  box-shadow: 0 8px 18px rgba(18, 30, 23, .06);
+}
+
+.report-card span,
+.report-card small {
+  display: block;
+  color: var(--muted);
+}
+
+.report-card strong {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 20px;
+}
+
+.report-block {
+  display: grid;
+  gap: 14px;
+}
+
+.report-block h3 {
+  margin: 0;
+}
+
+.report-detail-layout {
+  align-items: start;
+}
+
 .install-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1210,6 +1250,7 @@ html.mobile-device .main {
 html.mobile-device .layout,
 html.mobile-device .grid,
 html.mobile-device .kpi-grid,
+html.mobile-device .report-quick,
 html.mobile-device .detail-grid,
 html.mobile-device .install-grid,
 html.mobile-device .chart-summary,

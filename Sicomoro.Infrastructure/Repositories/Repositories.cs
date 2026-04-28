@@ -32,9 +32,21 @@ public sealed class ClienteRepository(SicomoroDbContext db) : Repository<Cliente
 
     public Task<decimal> ObtenerDeudaTotalAsync(Guid clienteId, CancellationToken cancellationToken = default) =>
         Db.Cobros.Where(x => x.ClienteId == clienteId && x.Estado != EstadoCobro.Pagado).SumAsync(x => x.SaldoPendiente, cancellationToken);
+
+    public async Task<bool> TieneHistorialAsync(Guid clienteId, CancellationToken cancellationToken = default) =>
+        await Db.Ventas.AnyAsync(x => x.ClienteId == clienteId, cancellationToken)
+        || await Db.Cobros.AnyAsync(x => x.ClienteId == clienteId, cancellationToken);
+
+    public void Eliminar(Cliente cliente) => Db.Clientes.Remove(cliente);
 }
 
-public sealed class ProveedorRepository(SicomoroDbContext db) : Repository<Proveedor>(db), IProveedorRepository;
+public sealed class ProveedorRepository(SicomoroDbContext db) : Repository<Proveedor>(db), IProveedorRepository
+{
+    public Task<bool> TieneHistorialAsync(Guid proveedorId, CancellationToken cancellationToken = default) =>
+        Db.Compras.AnyAsync(x => x.ProveedorId == proveedorId, cancellationToken);
+
+    public void Eliminar(Proveedor proveedor) => Db.Proveedores.Remove(proveedor);
+}
 public sealed class ProductoRepository(SicomoroDbContext db) : Repository<ProductoMadera>(db), IProductoRepository
 {
     public async Task<bool> TieneHistorialAsync(Guid productoId, CancellationToken cancellationToken = default) =>

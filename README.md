@@ -94,6 +94,7 @@ Sicomoro centraliza la operación en un sistema único:
 - Registro de clientes y proveedores.
 - Catálogo interno de productos de madera.
 - Control de inventario por producto.
+- Borrado protegido por clave para clientes, proveedores, productos, anuncios y usuarios.
 - Compras con recepción automática en inventario.
 - Ventas con validación de stock.
 - Cobros y cuentas por cobrar.
@@ -367,7 +368,15 @@ Roles disponibles:
 | `GET` | `/api/clientes/{id}` | Obtiene cliente. |
 | `POST` | `/api/clientes` | Crea cliente. |
 | `PUT` | `/api/clientes/{id}` | Edita cliente. |
-| `DELETE` | `/api/clientes/{id}` | Inactiva cliente. |
+| `DELETE` | `/api/clientes/{id}` | Borra cliente sin historial usando `X-Sicomoro-Operation-Key`. |
+
+### Proveedores
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/proveedores` | Lista proveedores. |
+| `POST` | `/api/proveedores` | Crea proveedor. |
+| `DELETE` | `/api/proveedores/{id}` | Borra proveedor sin compras registradas usando `X-Sicomoro-Operation-Key`. |
 
 ### Productos e inventario
 
@@ -376,7 +385,7 @@ Roles disponibles:
 | `GET` | `/api/productos` | Lista productos. |
 | `POST` | `/api/productos` | Crea producto. |
 | `PUT` | `/api/productos/{id}` | Edita producto. |
-| `DELETE` | `/api/productos/{id}` | Borra producto si no tiene historial. |
+| `DELETE` | `/api/productos/{id}` | Borra producto si no tiene historial y se envía `X-Sicomoro-Operation-Key`. |
 | `GET` | `/api/inventario` | Consulta stock. |
 | `POST` | `/api/inventario/ajuste` | Ajusta inventario. |
 | `GET` | `/api/inventario/movimientos` | Lista movimientos. |
@@ -392,6 +401,10 @@ Roles disponibles:
 | `PUT` | `/api/ventas/{id}/confirmar` | Confirma venta y descuenta stock. |
 | `PUT` | `/api/ventas/{id}/anular` | Anula venta y revierte stock si corresponde. |
 | `GET` | `/api/ventas` | Lista ventas. |
+
+### Reportes operativos
+
+El panel web combina reportes de ventas, caja, inventario bajo y clientes deudores en un resumen exportable. Esta vista ayuda al dueño a revisar flujo de caja, deuda pendiente y productos críticos sin entrar módulo por módulo.
 
 ### Cobros, caja y documentos
 
@@ -412,7 +425,7 @@ Roles disponibles:
 | `GET` | `/api/catalogo/anuncios` | Admin/Gerente | Lista todos los anuncios. |
 | `POST` | `/api/catalogo/anuncios` | Admin/Gerente | Crea anuncio. |
 | `PUT` | `/api/catalogo/anuncios/{id}` | Admin/Gerente | Actualiza anuncio. |
-| `DELETE` | `/api/catalogo/anuncios/{id}` | Admin/Gerente | Elimina anuncio. |
+| `DELETE` | `/api/catalogo/anuncios/{id}` | Admin/Gerente | Elimina anuncio con clave de operación. |
 
 ---
 

@@ -36,8 +36,8 @@ public sealed class UsuariosController(IMediator mediator) : ControllerBase
 
     [Authorize(Roles = "Administrador")]
     [HttpDelete("{id:guid}")]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken ct) =>
-        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioCommand(id), ct)));
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioCommand(id, claveOperacion), ct)));
 
     [Authorize(Roles = "Administrador")]
     [HttpPut("{id:guid}/password")]
@@ -46,8 +46,8 @@ public sealed class UsuariosController(IMediator mediator) : ControllerBase
 
     [Authorize(Roles = "Administrador")]
     [HttpDelete]
-    public async Task<ActionResult<ApiResponse<object>>> Delete([FromQuery] string email, CancellationToken ct) =>
-        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioPorEmailCommand(email), ct)));
+    public async Task<ActionResult<ApiResponse<object>>> Delete([FromQuery] string email, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarUsuarioPorEmailCommand(email, claveOperacion), ct)));
 }
 
 public sealed record ResetearUsuarioPasswordRequest(string NuevaPassword);

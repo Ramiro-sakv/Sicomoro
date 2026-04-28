@@ -1,9 +1,9 @@
-const CACHE_NAME = "sicomoro-pwa-v1.4.4-calculo-pie-tablar";
+const CACHE_NAME = "sicomoro-pwa-v1.4.5-borrado-reportes";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260428-144",
-  "/app.js?v=20260428-144",
+  "/styles.css?v=20260428-145",
+  "/app.js?v=20260428-145",
   "/manifest.webmanifest",
   "/assets/catalogo-hero.png",
   "/assets/catalogo-demo-tajibo.png",

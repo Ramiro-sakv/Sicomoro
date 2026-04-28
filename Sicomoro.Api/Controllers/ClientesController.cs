@@ -33,8 +33,8 @@ public sealed class ClientesController(IMediator mediator) : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = AppRoles.Gestion)]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken ct) =>
-        Ok(ApiResponse<object>.Ok(await mediator.Send(new InactivarClienteCommand(id), ct)));
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarClienteCommand(id, claveOperacion), ct)));
 }
 
 public sealed record ActualizarClienteRequest(string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas, Domain.Enums.EstadoRegistro Estado);

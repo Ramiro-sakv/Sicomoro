@@ -1,6 +1,7 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.4-calculo-pie-tablar";
+const APP_VERSION = "v1.4.5-borrado-reportes";
+const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const CATALOG_DEMO_MODE = true;
 const CATALOG_DEMO_ITEMS = [
   {
@@ -364,7 +365,7 @@ async function api(path, options = {}) {
 async function safe(action, message = "Operacion completada") {
   try {
     const result = await action();
-    if (message) toast(message);
+    if (message && result !== false) toast(message);
     return result;
   } catch (error) {
     toast(error.message || "Error inesperado");
@@ -379,6 +380,22 @@ async function safeApi(path, fallback = []) {
     if (["Error HTTP 403", "Error HTTP 404"].includes(error.message)) return fallback;
     throw error;
   }
+}
+
+function requestOperationKey(actionName = "borrar") {
+  const value = prompt(`Codigo de seguridad para ${actionName}`);
+  if (!value) {
+    toast("Operacion cancelada");
+    return null;
+  }
+  return value.trim();
+}
+
+async function deleteWithOperationKey(path, actionName = "borrar") {
+  const claveOperacion = requestOperationKey(actionName);
+  if (!claveOperacion) return false;
+  await api(path, { method: "DELETE", headers: { [OPERATION_KEY_HEADER]: claveOperacion } });
+  return true;
 }
 
 function setView(view) {
@@ -962,7 +979,7 @@ function renderClientes() {
         ], page.rows, row => `
           <div class="split-actions">
             <button data-historial-cliente="${row.id}">Historial</button>
-            <button data-delete-cliente="${row.id}" class="danger">Inactivar</button>
+            <button data-delete-cliente="${row.id}" class="danger">Borrar</button>
           </div>
         `)}
         ${pager("clientes", page)}
@@ -996,10 +1013,12 @@ function renderClientes() {
     renderClientes();
   });
   document.querySelectorAll("[data-delete-cliente]").forEach(btn => btn.onclick = () => safe(async () => {
-    await api(`/api/clientes/${btn.dataset.deleteCliente}`, { method: "DELETE" });
+    const cliente = state.cache.clientes.find(x => x.id === btn.dataset.deleteCliente);
+    if (!confirm(`Borrar cliente ${cliente?.nombreRazonSocial || ""}? Si tiene ventas o cobros, el sistema bloqueara el borrado para proteger el historial.`)) return false;
+    if (!await deleteWithOperationKey(`/api/clientes/${btn.dataset.deleteCliente}`, "borrar cliente")) return false;
     await loadCommon();
     render();
-  }, "Cliente inactivado"));
+  }, "Cliente eliminado"));
 }
 
 function renderProveedores() {
@@ -1031,7 +1050,12 @@ function renderProveedores() {
           { label: "Origen", key: "lugarOrigen" },
           { label: "Telefono", key: "telefono" },
           { label: "Madera", key: "tipoMadera" }
-        ], page.rows, row => `<button data-historial-proveedor="${row.id}">Historial</button>`)}
+        ], page.rows, row => `
+          <div class="split-actions">
+            <button data-historial-proveedor="${row.id}">Historial</button>
+            <button data-delete-proveedor="${row.id}" class="danger">Borrar</button>
+          </div>
+        `)}
         ${pager("proveedores", page)}
       </div>
       <div class="panel full-panel">
@@ -1062,6 +1086,14 @@ function renderProveedores() {
     state.selectedProveedorId = btn.dataset.historialProveedor;
     renderProveedores();
   });
+  document.querySelectorAll("[data-delete-proveedor]").forEach(btn => btn.onclick = () => safe(async () => {
+    const proveedor = state.cache.proveedores.find(x => x.id === btn.dataset.deleteProveedor);
+    if (!confirm(`Borrar proveedor ${proveedor?.nombre || ""}? Si tiene compras registradas, el sistema bloqueara el borrado para mantener el historial.`)) return false;
+    if (!await deleteWithOperationKey(`/api/proveedores/${btn.dataset.deleteProveedor}`, "borrar proveedor")) return false;
+    state.selectedProveedorId = state.selectedProveedorId === btn.dataset.deleteProveedor ? "" : state.selectedProveedorId;
+    await loadCommon();
+    render();
+  }, "Proveedor eliminado"));
 }
 
 function renderProductos() {
@@ -1133,7 +1165,7 @@ function renderProductos() {
     const producto = findProducto(btn.dataset.deleteProducto);
     if (!confirm(`Borrar definitivamente ${producto?.nombreComercial || "producto"}? Si tiene compras, ventas o movimientos, el sistema no lo borrara para proteger el historial.`)) return;
     await safe(async () => {
-      await api(`/api/productos/${btn.dataset.deleteProducto}`, { method: "DELETE" });
+      if (!await deleteWithOperationKey(`/api/productos/${btn.dataset.deleteProducto}`, "borrar producto")) return false;
       await loadCommon();
       render();
     }, "Producto eliminado");
@@ -1572,13 +1604,20 @@ function renderReportes() {
   renderShell(`
     <section class="layout">
       <div class="panel">
-        <div class="panel-header"><h3>Rango</h3></div>
+        <div class="panel-header"><h3>Control de reportes</h3></div>
         <div class="panel-body">
+          <div class="report-quick">
+            ${reportMetric("Ventas", state.cache.ventas.filter(x => x.estado !== 4).length, "Operaciones no anuladas")}
+            ${reportMetric("Vendido", money(state.cache.ventas.filter(x => x.estado !== 4).reduce((sum, x) => sum + Number(x.total || 0), 0)), "Total historico cargado")}
+            ${reportMetric("Deuda", money(state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0)), "Cuentas por cobrar")}
+            ${reportMetric("Bajo stock", state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo)).length, "Productos a revisar")}
+          </div>
           <form id="reportForm" class="grid">
             <label>Desde<input name="desde" type="date" value="${monthStart()}"></label>
             <label>Hasta<input name="hasta" type="date" value="${today()}"></label>
             <div class="actions full">
-              <button class="primary">Ventas</button>
+              <button class="primary" type="button" id="reporteCompleto">Resumen completo</button>
+              <button>Ventas</button>
               <button type="button" id="reporteCaja">Caja</button>
               <button type="button" id="reporteBajo">Inventario bajo</button>
               <button type="button" id="reporteDeudores">Deudores</button>
@@ -1589,12 +1628,63 @@ function renderReportes() {
       </div>
       <div class="panel">
         <div class="panel-header"><h3>Resultado</h3></div>
-        <div class="panel-body" id="reportResult"></div>
+        <div class="panel-body" id="reportResult">${renderReportHome()}</div>
       </div>
     </section>
   `, "Reportes");
   const form = document.getElementById("reportForm");
   let ultimoReporte = null;
+  document.getElementById("reporteCompleto").onclick = async () => {
+    const data = formData(form);
+    await safe(async () => {
+      const [ventas, caja, bajo, deudores] = await Promise.all([
+        api(`/api/reportes/ventas?desde=${data.desde}&hasta=${data.hasta}`),
+        api(`/api/reportes/caja?desde=${data.desde}&hasta=${data.hasta}`),
+        api("/api/reportes/inventario-bajo"),
+        api("/api/reportes/clientes-deudores")
+      ]);
+      const resumenRows = [
+        { seccion: "Ventas", indicador: "Cantidad", valor: ventas.cantidadVentas },
+        { seccion: "Ventas", indicador: "Total vendido", valor: ventas.totalVentas },
+        { seccion: "Ventas", indicador: "Total pagado", valor: ventas.totalPagado },
+        { seccion: "Ventas", indicador: "Saldo pendiente", valor: ventas.saldoPendiente },
+        { seccion: "Caja", indicador: "Ingresos", valor: caja.ingresos },
+        { seccion: "Caja", indicador: "Egresos", valor: caja.egresos },
+        { seccion: "Caja", indicador: "Saldo", valor: caja.saldo },
+        { seccion: "Inventario", indicador: "Productos bajo stock", valor: bajo.length },
+        { seccion: "Cobranza", indicador: "Clientes con deuda", valor: deudores.length }
+      ];
+      ultimoReporte = {
+        filename: `resumen-negocio-${data.desde}-${data.hasta}.csv`,
+        rows: resumenRows,
+        columns: [
+          { label: "Seccion", key: "seccion" },
+          { label: "Indicador", key: "indicador" },
+          { label: "Valor", key: "valor" }
+        ]
+      };
+      reportHtml(`
+        <div class="report-block">
+          <h3>Resumen del negocio</h3>
+          <p class="hint">Periodo ${esc(data.desde)} a ${esc(data.hasta)}. Este resumen cruza ventas, caja, cobranza e inventario critico.</p>
+          <div class="kpi-grid">
+            <div class="kpi"><span>Ventas</span><strong>${ventas.cantidadVentas}</strong></div>
+            <div class="kpi"><span>Total vendido</span><strong>${money(ventas.totalVentas)}</strong></div>
+            <div class="kpi"><span>Pagado</span><strong>${money(ventas.totalPagado)}</strong></div>
+            <div class="kpi"><span>Saldo ventas</span><strong>${money(ventas.saldoPendiente)}</strong></div>
+            <div class="kpi"><span>Ingresos caja</span><strong>${money(caja.ingresos)}</strong></div>
+            <div class="kpi"><span>Egresos caja</span><strong>${money(caja.egresos)}</strong></div>
+            <div class="kpi"><span>Saldo caja</span><strong>${money(caja.saldo)}</strong></div>
+            <div class="kpi"><span>Bajo stock</span><strong>${bajo.length}</strong></div>
+          </div>
+          <div class="layout report-detail-layout">
+            <div class="panel"><div class="panel-header"><h3>Clientes deudores</h3></div>${table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => money(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], deudores.slice(0, 8))}</div>
+            <div class="panel"><div class="panel-header"><h3>Inventario bajo</h3></div>${table([{ label: "Producto", key: "producto" }, { label: "Stock", render: x => money(x.stockActual) }, { label: "Minimo", render: x => money(x.stockMinimo) }], bajo.slice(0, 8))}</div>
+          </div>
+        </div>
+      `);
+    }, "Reporte completo generado");
+  };
   form.onsubmit = async event => {
     event.preventDefault();
     const data = formData(form);
@@ -1668,6 +1758,43 @@ function renderReportes() {
 
 function reportHtml(html) {
   document.getElementById("reportResult").innerHTML = html;
+}
+
+function reportMetric(label, value, hint) {
+  return `<div class="report-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><small>${esc(hint)}</small></div>`;
+}
+
+function renderReportHome() {
+  const bajo = state.cache.inventario
+    .filter(x => Number(x.stockActual) <= Number(x.stockMinimo))
+    .slice(0, 5);
+  const deudores = [...state.cache.deudas]
+    .sort((a, b) => Number(b.saldoPendiente || 0) - Number(a.saldoPendiente || 0))
+    .slice(0, 5);
+  return `
+    <div class="report-block">
+      <h3>Vista rapida</h3>
+      <p class="hint">Usa el resumen completo para revisar caja, ventas, deuda e inventario en un solo corte.</p>
+      <div class="layout report-detail-layout">
+        <div class="panel">
+          <div class="panel-header"><h3>Deudas mas importantes</h3></div>
+          ${table([
+            { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
+            { label: "Saldo", render: x => money(x.saldoPendiente) },
+            { label: "Vence", render: x => date(x.fechaVencimiento) }
+          ], deudores)}
+        </div>
+        <div class="panel">
+          <div class="panel-header"><h3>Stock para revisar</h3></div>
+          ${table([
+            { label: "Producto", key: "producto" },
+            { label: "Stock", render: x => money(x.stockActual) },
+            { label: "Minimo", render: x => money(x.stockMinimo) }
+          ], bajo)}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderPerfil() {
@@ -2144,7 +2271,7 @@ function renderPublicidad() {
     const item = anuncios.find(x => x.id === btn.dataset.deleteAnuncio);
     if (!confirm(`Borrar anuncio ${item?.titulo || ""}?`)) return;
     await safe(async () => {
-      await api(`/api/catalogo/anuncios/${btn.dataset.deleteAnuncio}`, { method: "DELETE" });
+      if (!await deleteWithOperationKey(`/api/catalogo/anuncios/${btn.dataset.deleteAnuncio}`, "borrar anuncio")) return false;
       state.cache.catalogoAnuncios = await api("/api/catalogo/anuncios");
       render();
     }, "Anuncio eliminado");
@@ -2208,7 +2335,7 @@ function renderUsuarios() {
     const usuario = state.cache.usuarios.find(x => x.id === btn.dataset.deleteUsuario);
     if (!confirm(`Borrar usuario ${usuario?.email || ""}? Esta accion no borra auditorias ni ventas ya registradas.`)) return;
     await safe(async () => {
-      await api(`/api/usuarios/${btn.dataset.deleteUsuario}`, { method: "DELETE" });
+      if (!await deleteWithOperationKey(`/api/usuarios/${btn.dataset.deleteUsuario}`, "borrar usuario")) return false;
       state.cache.usuarios = await api("/api/usuarios");
       render();
     }, "Usuario eliminado");

@@ -34,8 +34,8 @@ public sealed class CatalogoController(IMediator mediator) : ControllerBase
 
     [HttpDelete("anuncios/{id:guid}")]
     [Authorize(Roles = AppRoles.Gestion)]
-    public async Task<ActionResult<ApiResponse<object>>> Eliminar(Guid id, CancellationToken ct) =>
-        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarAnuncioCatalogoCommand(id), ct)));
+    public async Task<ActionResult<ApiResponse<object>>> Eliminar(Guid id, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarAnuncioCatalogoCommand(id, claveOperacion), ct)));
 }
 
 public sealed record ActualizarAnuncioCatalogoRequest(Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado);

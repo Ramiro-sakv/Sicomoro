@@ -20,4 +20,8 @@ public sealed class ProveedoresController(IMediator mediator) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearProveedorCommand command, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(command, ct)));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarProveedorCommand(id, claveOperacion), ct)));
 }

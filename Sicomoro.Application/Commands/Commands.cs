@@ -14,20 +14,21 @@ public sealed record RegisterCommand(string Nombre, string Email, string Passwor
 public sealed record LoginClientePortalCommand(string Email, string Password) : IRequest<AuthResponse>;
 public sealed record RegistrarClientePortalCommand(string Nombre, string Email, string Password, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Ciudad = null) : IRequest<AuthResponse>;
 public sealed record CrearUsuarioCommand(string Nombre, string Email, string Password, RolSistema Rol, string ClaveCreacion, string? CiNit = null, string? Telefono = null, string? Direccion = null, string? Cargo = null, string? Notas = null) : IRequest<UsuarioDto>;
-public sealed record EliminarUsuarioPorEmailCommand(string Email) : IRequest<bool>;
-public sealed record EliminarUsuarioCommand(Guid Id) : IRequest<bool>;
+public sealed record EliminarUsuarioPorEmailCommand(string Email, string? ClaveOperacion = null) : IRequest<bool>;
+public sealed record EliminarUsuarioCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
 public sealed record ResetearUsuarioPasswordCommand(Guid Id, string NuevaPassword) : IRequest<bool>;
 public sealed record ActualizarMiPerfilCommand(string Nombre, string Email, string? CiNit, string? Telefono, string? Direccion, string? Cargo, string? Notas) : IRequest<UsuarioDto>;
 public sealed record CambiarMiPasswordCommand(string PasswordActual, string NuevaPassword) : IRequest<bool>;
 
 public sealed record CrearClienteCommand(string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas) : IRequest<ClienteDto>;
 public sealed record ActualizarClienteCommand(Guid Id, string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas, EstadoRegistro Estado) : IRequest<ClienteDto>;
-public sealed record InactivarClienteCommand(Guid Id) : IRequest<bool>;
+public sealed record EliminarClienteCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
 public sealed record CrearProveedorCommand(string Nombre, string LugarOrigen, string? Telefono, string? Direccion, string? TipoMadera, string? Notas) : IRequest<ProveedorDto>;
+public sealed record EliminarProveedorCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
 public sealed record CrearProductoCommand(string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, string? Observaciones) : IRequest<ProductoDto>;
 public sealed record ActualizarProductoCommand(Guid Id, string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, EstadoRegistro Estado, string? Observaciones) : IRequest<ProductoDto>;
 public sealed record InactivarProductoCommand(Guid Id) : IRequest<bool>;
-public sealed record EliminarProductoCommand(Guid Id) : IRequest<bool>;
+public sealed record EliminarProductoCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
 public sealed record AjustarInventarioCommand(Guid ProductoId, decimal NuevoStock, string? UbicacionInterna, string Motivo) : IRequest<InventarioDto>;
 public sealed record CrearTransporteCommand(string? Camion, string? Chofer, string? Placa, string LugarOrigen, DateTime? FechaSalida, DateTime? FechaLlegada, decimal CostoTransporte, EstadoTransporte Estado, string? Observaciones, Guid? CompraId) : IRequest<TransporteDto>;
 public sealed record ActualizarEstadoTransporteCommand(Guid Id, EstadoTransporte Estado, DateTime? FechaLlegada) : IRequest<TransporteDto>;
@@ -44,7 +45,7 @@ public sealed record GenerarDocumentoVentaCommand(Guid VentaId, TipoDocumentoVen
 public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<bool>;
 public sealed record CrearAnuncioCatalogoCommand(Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
 public sealed record ActualizarAnuncioCatalogoCommand(Guid Id, Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
-public sealed record EliminarAnuncioCatalogoCommand(Guid Id) : IRequest<bool>;
+public sealed record EliminarAnuncioCatalogoCommand(Guid Id, string? ClaveOperacion = null) : IRequest<bool>;
 
 public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICurrentUserService currentUser, IPasswordHasher hasher, IUserCreationKeyValidator creationKeyValidator) :
     IRequestHandler<LoginCommand, AuthResponse>,
@@ -115,6 +116,7 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
 
     public async Task<bool> Handle(EliminarUsuarioPorEmailCommand request, CancellationToken cancellationToken)
     {
+        ValidarClaveOperacion(request.ClaveOperacion);
         var usuario = await uow.Usuarios.ObtenerPorEmailAsync(request.Email, cancellationToken)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
@@ -124,6 +126,7 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
 
     public async Task<bool> Handle(EliminarUsuarioCommand request, CancellationToken cancellationToken)
     {
+        ValidarClaveOperacion(request.ClaveOperacion);
         var usuario = await uow.Usuarios.ObtenerPorIdAsync(request.Id, cancellationToken)
             ?? throw new KeyNotFoundException("Usuario no encontrado.");
 
@@ -187,13 +190,20 @@ public sealed class AuthHandlers(IAuthService authService, IUnitOfWork uow, ICur
         uow.Usuarios.Eliminar(usuario);
         await uow.SaveChangesAsync(cancellationToken);
     }
+
+    private void ValidarClaveOperacion(string? clave)
+    {
+        if (!creationKeyValidator.IsValid(clave))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
+    }
 }
 
-public sealed class CatalogoHandlers(IUnitOfWork uow) :
+public sealed class CatalogoHandlers(IUnitOfWork uow, IUserCreationKeyValidator operationKeyValidator) :
     IRequestHandler<CrearClienteCommand, ClienteDto>,
     IRequestHandler<ActualizarClienteCommand, ClienteDto>,
-    IRequestHandler<InactivarClienteCommand, bool>,
+    IRequestHandler<EliminarClienteCommand, bool>,
     IRequestHandler<CrearProveedorCommand, ProveedorDto>,
+    IRequestHandler<EliminarProveedorCommand, bool>,
     IRequestHandler<CrearProductoCommand, ProductoDto>,
     IRequestHandler<ActualizarProductoCommand, ProductoDto>,
     IRequestHandler<InactivarProductoCommand, bool>,
@@ -226,10 +236,26 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
         return proveedor.ToDto();
     }
 
-    public async Task<bool> Handle(InactivarClienteCommand r, CancellationToken ct)
+    public async Task<bool> Handle(EliminarClienteCommand r, CancellationToken ct)
     {
+        ValidarClaveOperacion(r.ClaveOperacion);
         var cliente = await uow.Clientes.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Cliente no encontrado.");
-        cliente.Actualizar(cliente.NombreRazonSocial, cliente.CiNit, cliente.Telefono, cliente.Direccion, cliente.Ciudad, cliente.Notas, EstadoRegistro.Inactivo);
+        if (await uow.Clientes.TieneHistorialAsync(r.Id, ct))
+            throw new InvalidOperationException("No se puede borrar definitivamente un cliente con ventas o cobros registrados. Marcalo como Inactivo para conservar el historial.");
+
+        uow.Clientes.Eliminar(cliente);
+        await uow.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<bool> Handle(EliminarProveedorCommand r, CancellationToken ct)
+    {
+        ValidarClaveOperacion(r.ClaveOperacion);
+        var proveedor = await uow.Proveedores.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Proveedor no encontrado.");
+        if (await uow.Proveedores.TieneHistorialAsync(r.Id, ct))
+            throw new InvalidOperationException("No se puede borrar definitivamente un proveedor con compras registradas. Conserva el proveedor para mantener la trazabilidad.");
+
+        uow.Proveedores.Eliminar(proveedor);
         await uow.SaveChangesAsync(ct);
         return true;
     }
@@ -261,6 +287,7 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
 
     public async Task<bool> Handle(EliminarProductoCommand r, CancellationToken ct)
     {
+        ValidarClaveOperacion(r.ClaveOperacion);
         var producto = await uow.Productos.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");
         if (await uow.Productos.TieneHistorialAsync(r.Id, ct))
         {
@@ -270,6 +297,12 @@ public sealed class CatalogoHandlers(IUnitOfWork uow) :
         await uow.Productos.EliminarDefinitivoAsync(producto, ct);
         await uow.SaveChangesAsync(ct);
         return true;
+    }
+
+    private void ValidarClaveOperacion(string? clave)
+    {
+        if (!operationKeyValidator.IsValid(clave))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
     }
 
     public async Task<TransporteDto> Handle(CrearTransporteCommand r, CancellationToken ct)
@@ -492,7 +525,7 @@ public sealed class CajaHandler(IUnitOfWork uow, ICurrentUserService currentUser
     }
 }
 
-public sealed class CatalogoPublicoHandlers(IUnitOfWork uow) :
+public sealed class CatalogoPublicoHandlers(IUnitOfWork uow, IUserCreationKeyValidator operationKeyValidator) :
     IRequestHandler<CrearAnuncioCatalogoCommand, AnuncioCatalogoDto>,
     IRequestHandler<ActualizarAnuncioCatalogoCommand, AnuncioCatalogoDto>,
     IRequestHandler<EliminarAnuncioCatalogoCommand, bool>
@@ -521,10 +554,19 @@ public sealed class CatalogoPublicoHandlers(IUnitOfWork uow) :
 
     public async Task<bool> Handle(EliminarAnuncioCatalogoCommand r, CancellationToken ct)
     {
+        if (!operationKeyValidator.IsValid(r.ClaveOperacion))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
+
         var anuncio = await uow.AnunciosCatalogo.ObtenerPorIdAsync(r.Id, ct) ?? throw new KeyNotFoundException("Anuncio no encontrado.");
         uow.AnunciosCatalogo.Eliminar(anuncio);
         await uow.SaveChangesAsync(ct);
         return true;
+    }
+
+    private void ValidarClaveOperacion(string? clave)
+    {
+        if (!operationKeyValidator.IsValid(clave))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
     }
 
     private async Task ValidarProductoAsync(Guid? productoId, CancellationToken ct)

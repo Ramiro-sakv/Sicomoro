@@ -29,8 +29,8 @@ public sealed class ProductosController(IMediator mediator) : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = AppRoles.InventarioGestion)]
-    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, CancellationToken ct) =>
-        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarProductoCommand(id), ct)));
+    public async Task<ActionResult<ApiResponse<object>>> Delete(Guid id, [FromHeader(Name = "X-Sicomoro-Operation-Key")] string? claveOperacion, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new EliminarProductoCommand(id, claveOperacion), ct)));
 }
 
 public sealed record ActualizarProductoRequest(string NombreComercial, string TipoMadera, Domain.Enums.UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, Domain.Enums.EstadoRegistro Estado, string? Observaciones);

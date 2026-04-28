@@ -15,9 +15,15 @@ public interface IClienteRepository : IRepository<Cliente>
 {
     Task<List<Cliente>> BuscarAsync(string? texto, CancellationToken cancellationToken = default);
     Task<decimal> ObtenerDeudaTotalAsync(Guid clienteId, CancellationToken cancellationToken = default);
+    Task<bool> TieneHistorialAsync(Guid clienteId, CancellationToken cancellationToken = default);
+    void Eliminar(Cliente cliente);
 }
 
-public interface IProveedorRepository : IRepository<Proveedor> { }
+public interface IProveedorRepository : IRepository<Proveedor>
+{
+    Task<bool> TieneHistorialAsync(Guid proveedorId, CancellationToken cancellationToken = default);
+    void Eliminar(Proveedor proveedor);
+}
 public interface IProductoRepository : IRepository<ProductoMadera>
 {
     Task<bool> TieneHistorialAsync(Guid productoId, CancellationToken cancellationToken = default);

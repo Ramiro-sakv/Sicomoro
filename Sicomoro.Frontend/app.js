@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.5-borrado-reportes";
+const APP_VERSION = "v1.4.6-app-pc";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const CATALOG_DEMO_MODE = true;
 const CATALOG_DEMO_ITEMS = [
@@ -185,7 +185,7 @@ const views = [
   ["reportes", "Reportes", [1, 5]],
   ["publicidad", "Publicidad", [1, 5]],
   ["perfil", "Mi perfil", [1, 2, 3, 4, 5, 6]],
-  ["app", "App movil", [1, 2, 3, 4, 5, 6]],
+  ["app", "App PC/movil", [1, 2, 3, 4, 5, 6]],
   ["usuarios", "Usuarios", [1]],
   ["notificaciones", "Notificaciones", [1, 2, 3, 4, 5]],
   ["auditoria", "Auditoria", [1, 5]]
@@ -586,6 +586,21 @@ function downloadCsv(filename, rows, columns) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+function downloadTextFile(filename, content, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function downloadDesktopShortcut() {
+  const appUrl = `${window.location.origin}/personal`;
+  const iconUrl = `${window.location.origin}/icons/icon-192.png`;
+  downloadTextFile("Sicomoro.url", `[InternetShortcut]\r\nURL=${appUrl}\r\nIconFile=${iconUrl}\r\nIconIndex=0\r\n`, "application/octet-stream");
 }
 
 async function downloadFile(path, filename = "documento.pdf") {
@@ -1879,14 +1894,33 @@ function renderAppInstall() {
           <div class="app-icon-preview">S</div>
           <div>
             <span class="badge ${status[2]}">${status[0]}</span>
-            <h3>Instalar Sicomoro en el celular</h3>
-            <p>La app se abre desde la pantalla principal, usa la misma cuenta y se conecta al mismo servidor de Sicomoro.</p>
+            <h3>Instalar Sicomoro en PC y celular</h3>
+            <p>La app se abre en una ventana propia, usa la misma cuenta y se conecta al mismo servidor de Sicomoro.</p>
             <div class="actions">
-              <button id="installAppBtn" class="primary" ${promptReady ? "" : "disabled"}>Instalar app</button>
+              <button id="installAppBtn" class="primary" ${promptReady ? "" : "disabled"}>Instalar como app</button>
+              <button id="downloadDesktopShortcutBtn">Descargar acceso PC</button>
               <button id="copyAppUrlBtn">Copiar link</button>
             </div>
             <p class="hint">${status[1]}</p>
           </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3>Windows / PC</h3></div>
+        <div class="panel-body install-steps">
+          <div><strong>1</strong><span>Abre Sicomoro en Chrome, Edge u Opera desde la PC.</span></div>
+          <div><strong>2</strong><span>Presiona Instalar como app. Si no aparece, usa el icono de instalacion o el menu del navegador.</span></div>
+          <div><strong>3</strong><span>Confirma Instalar. Sicomoro quedara como app con ventana propia y acceso en el escritorio o menu inicio.</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3>Acceso directo</h3></div>
+        <div class="panel-body install-steps">
+          <div><strong>1</strong><span>Usa Descargar acceso PC si solo quieres un archivo para abrir Sicomoro rapido.</span></div>
+          <div><strong>2</strong><span>Guarda el archivo Sicomoro.url en el escritorio.</span></div>
+          <div><strong>3</strong><span>Ese acceso abre el panel personal en el navegador disponible.</span></div>
         </div>
       </div>
 
@@ -1900,7 +1934,7 @@ function renderAppInstall() {
       </div>
 
       <div class="panel">
-        <div class="panel-header"><h3>iPhone</h3></div>
+        <div class="panel-header"><h3>iPhone / iPad</h3></div>
         <div class="panel-body install-steps">
           <div><strong>1</strong><span>Abre Sicomoro desde Safari.</span></div>
           <div><strong>2</strong><span>Toca Compartir.</span></div>
@@ -1921,7 +1955,7 @@ function renderAppInstall() {
         </div>
       </div>
     </section>
-  `, "App movil");
+  `, "App PC/movil");
 
   document.getElementById("installAppBtn").onclick = async () => {
     if (!deferredInstallPrompt) {
@@ -1932,6 +1966,11 @@ function renderAppInstall() {
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
     render();
+  };
+
+  document.getElementById("downloadDesktopShortcutBtn").onclick = () => {
+    downloadDesktopShortcut();
+    toast("Acceso para PC descargado");
   };
 
   document.getElementById("copyAppUrlBtn").onclick = async () => {

@@ -104,6 +104,7 @@ Sicomoro centraliza la operación en un sistema único:
 - Auditoría de operaciones críticas.
 - Notificaciones internas.
 - Generación de comprobantes PDF internos.
+- Instalación como PWA en PC y celular, con acceso directo descargable para Windows.
 
 ### Para clientes
 
@@ -341,6 +342,16 @@ Roles disponibles:
 7. Ver resultado en `/`.
 
 > Nota de prueba: en la rama `codex/v1.4-catalogo-publico`, el frontend muestra productos de ejemplo cuando no existen anuncios reales publicados. Esto sirve para revisar el diseño del catálogo lleno sin modificar datos de negocio. Antes de lanzar oficialmente, cambiar `CATALOG_DEMO_MODE` a `false` en `Sicomoro.Frontend/app.js` o publicar anuncios reales desde `Publicidad`.
+
+### Instalar en PC o celular
+
+1. Entrar a `/personal`.
+2. Iniciar sesión.
+3. Abrir `App PC/movil`.
+4. En Windows o PC, usar `Instalar como app` desde Chrome, Edge u Opera.
+5. Si el navegador no muestra instalación, usar `Descargar acceso PC` para guardar `Sicomoro.url` en el escritorio.
+
+La instalación PWA abre Sicomoro en una ventana propia, con icono de aplicación, pero sigue usando el mismo servidor y la misma base de datos.
 
 ---
 

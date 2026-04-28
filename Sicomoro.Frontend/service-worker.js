@@ -1,9 +1,9 @@
-const CACHE_NAME = "sicomoro-pwa-v1.4.5-borrado-reportes";
+const CACHE_NAME = "sicomoro-pwa-v1.4.6-app-pc";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260428-145",
-  "/app.js?v=20260428-145",
+  "/styles.css?v=20260428-146",
+  "/app.js?v=20260428-146",
   "/manifest.webmanifest",
   "/assets/catalogo-hero.png",
   "/assets/catalogo-demo-tajibo.png",

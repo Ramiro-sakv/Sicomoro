@@ -470,6 +470,14 @@ Resultado:
 Cliente -> Venta pendiente -> Confirmación -> Salida de inventario -> Cobro / deuda
 ```
 
+En el frontend, cada línea de venta incluye una calculadora de **pies tablares** para la forma de venta común en barracas:
+
+```text
+piezas x largo en pies x ancho en pulgadas x espesor en pulgadas / 12
+```
+
+El resultado se guarda como `cantidad`, por lo que el inventario se descuenta en pies tablares cuando el producto se maneja con esa unidad.
+
 ```http
 POST /api/ventas
 Authorization: Bearer TOKEN

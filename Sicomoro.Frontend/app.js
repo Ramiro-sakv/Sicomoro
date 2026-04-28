@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.3-catalogo-demo";
+const APP_VERSION = "v1.4.4-calculo-pie-tablar";
 const CATALOG_DEMO_MODE = true;
 const CATALOG_DEMO_ITEMS = [
   {
@@ -274,6 +274,13 @@ function rolLabel(value) {
 
 function money(value) {
   return Number(value || 0).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function numberText(value) {
+  if (value == null || value === "") return "";
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return "";
+  return String(Number(number.toFixed(4)));
 }
 
 function date(value) {
@@ -623,6 +630,7 @@ function wireLineItems(containerId, buttonId, rowHtml, priceField) {
       if (container.children.length > 1) btn.closest(".line-item").remove();
     });
     container.querySelectorAll("[data-product-select]").forEach(select => select.onchange = () => fillLinePrice(select, priceField));
+    container.querySelectorAll("[data-venta-line]").forEach(wireVentaLineCalculator);
   };
 
   button.onclick = () => {
@@ -637,6 +645,52 @@ function fillLinePrice(select, field) {
   const row = select.closest(".line-item");
   const input = row?.querySelector(`[name="${field}"]`);
   if (producto && input && !Number(input.value)) input.value = Number(field === "precioCompra" ? producto.precioCompra : producto.precioVentaSugerido || 0);
+  if (row?.matches("[data-venta-line]")) fillVentaLineDimensions(row, producto);
+}
+
+function fillVentaLineDimensions(row, producto) {
+  if (!producto) return;
+  const largo = lineInput(row, "largoPies");
+  const ancho = lineInput(row, "anchoPulgadas");
+  const espesor = lineInput(row, "espesorPulgadas");
+  if (largo && !Number(largo.value)) largo.value = numberText(producto.largo);
+  if (ancho && !Number(ancho.value)) ancho.value = numberText(producto.ancho);
+  if (espesor && !Number(espesor.value)) espesor.value = numberText(producto.espesor);
+  calculateVentaLine(row);
+}
+
+function wireVentaLineCalculator(row) {
+  if (row.dataset.calculatorReady === "1") return;
+  row.dataset.calculatorReady = "1";
+  ["piezas", "largoPies", "anchoPulgadas", "espesorPulgadas", "cantidad", "precioUnitario", "descuento"].forEach(name => {
+    lineInput(row, name)?.addEventListener("input", () => calculateVentaLine(row));
+  });
+  fillVentaLineDimensions(row, findProducto(lineInput(row, "productoId")?.value));
+  calculateVentaLine(row);
+}
+
+function calculateVentaLine(row) {
+  const piezas = Number(lineInput(row, "piezas")?.value || 0);
+  const largoPies = Number(lineInput(row, "largoPies")?.value || 0);
+  const anchoPulgadas = Number(lineInput(row, "anchoPulgadas")?.value || 0);
+  const espesorPulgadas = Number(lineInput(row, "espesorPulgadas")?.value || 0);
+  const cantidadInput = lineInput(row, "cantidad");
+
+  if (piezas > 0 && largoPies > 0 && anchoPulgadas > 0 && espesorPulgadas > 0 && cantidadInput) {
+    const piesTablares = (piezas * largoPies * anchoPulgadas * espesorPulgadas) / 12;
+    cantidadInput.value = piesTablares.toFixed(4);
+  }
+
+  const cantidad = Number(cantidadInput?.value || 0);
+  const precio = Number(lineInput(row, "precioUnitario")?.value || 0);
+  const descuento = Number(lineInput(row, "descuento")?.value || 0);
+  const total = Math.max(0, cantidad * precio - descuento);
+  const result = row.querySelector("[data-line-total]");
+  if (result) {
+    result.textContent = cantidad > 0 || precio > 0
+      ? `${money(cantidad)} pies tablares / Bs ${money(total)}`
+      : "Complete medidas para calcular";
+  }
 }
 
 function compraLineHtml(detail = {}) {
@@ -654,10 +708,15 @@ function ventaLineHtml(detail = {}) {
   return `
     <div class="line-item" data-venta-line>
       <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
-      <label>Cantidad<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
+      <label>Piezas<input name="piezas" type="number" step="1" min="0" placeholder="Ej: 4"></label>
+      <label>Largo pies<input name="largoPies" type="number" step="0.0001" min="0" placeholder="Ej: 10"></label>
+      <label>Ancho pulg.<input name="anchoPulgadas" type="number" step="0.0001" min="0" placeholder="Ej: 4"></label>
+      <label>Espesor pulg.<input name="espesorPulgadas" type="number" step="0.0001" min="0" placeholder="Ej: 2"></label>
+      <label>Cantidad / pies tablares<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
       <label>Precio unitario<input name="precioUnitario" type="number" step="0.0001" value="${esc(detail.precioUnitario ?? "")}" required></label>
       <label>Descuento<input name="descuento" type="number" step="0.0001" value="${esc(detail.descuento ?? 0)}"></label>
       <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+      <div class="line-math" data-line-total>Complete medidas para calcular</div>
       <button type="button" class="danger" data-remove-line>Quitar</button>
     </div>
   `;
@@ -1239,6 +1298,7 @@ function renderVentas() {
                 <strong>Productos vendidos</strong>
                 <button type="button" id="addVentaLine">Agregar producto</button>
               </div>
+              <p class="hint">Para vender por madera medida: piezas x largo en pies x ancho en pulgadas x espesor en pulgadas / 12. El resultado se guarda como cantidad en pies tablares.</p>
               <div id="ventaLines">${ventaLineHtml()}</div>
             </div>
             <label class="full">Observaciones<input name="observaciones"></label>

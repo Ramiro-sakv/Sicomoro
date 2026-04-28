@@ -341,7 +341,7 @@ Roles disponibles:
 6. Marcar `Publicado en catálogo`.
 7. Ver resultado en `/`.
 
-> Nota de prueba: en la rama `codex/v1.4-catalogo-publico`, el frontend muestra productos de ejemplo cuando no existen anuncios reales publicados. Esto sirve para revisar el diseño del catálogo lleno sin modificar datos de negocio. Antes de lanzar oficialmente, cambiar `CATALOG_DEMO_MODE` a `false` en `Sicomoro.Frontend/app.js` o publicar anuncios reales desde `Publicidad`.
+> Producción: el catálogo no muestra productos de ejemplo. Para mostrar madera en la página pública, crea anuncios reales desde `Publicidad` y márcalos como publicados.
 
 ### Instalar en PC o celular
 

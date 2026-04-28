@@ -1026,45 +1026,6 @@ th {
   color: #65736d;
 }
 
-.demo-notice {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: center;
-  border: 1px solid #d8bd75;
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-  background: #fff7df;
-  color: #4c3a17;
-  box-shadow: 0 10px 24px rgba(76, 58, 23, .08);
-}
-
-.demo-notice strong {
-  font-size: 15px;
-}
-
-.demo-notice span {
-  color: #6d5a2a;
-}
-
-.demo-card {
-  position: relative;
-}
-
-.demo-card::after {
-  content: "Vista demo";
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  background: rgba(24, 34, 29, .88);
-  color: #fff;
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .public-footer {
   padding: 22px;
   text-align: center;
@@ -1460,7 +1421,6 @@ html.mobile-device .public-contact {
 
 html.mobile-device .public-contact,
 html.mobile-device .public-section-head,
-html.mobile-device .demo-notice,
 html.mobile-device .catalog-meta,
 html.mobile-device .catalog-card-foot {
   align-items: stretch;

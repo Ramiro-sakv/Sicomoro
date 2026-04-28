@@ -1,6 +1,123 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.4.2-catalogo-clientes";
+const APP_VERSION = "v1.4.3-catalogo-demo";
+const CATALOG_DEMO_MODE = true;
+const CATALOG_DEMO_ITEMS = [
+  {
+    id: "demo-tajibo",
+    demo: true,
+    productoId: null,
+    producto: "Tajibo 2x4",
+    tipoMadera: "Tajibo",
+    unidadMedida: "Pieza",
+    stockActual: 84,
+    titulo: "Tajibo seco 2x4",
+    subtitulo: "Estructura resistente para obra",
+    descripcion: "Madera dura, seleccionada y lista para cotizacion por volumen.",
+    imagenUrl: "/assets/catalogo-demo-tajibo.png",
+    precioTexto: "Desde Bs 55",
+    etiqueta: "Ejemplo",
+    ctaTexto: "Solicitar cotizacion",
+    ctaUrl: "#contacto",
+    orden: 1,
+    publicado: true
+  },
+  {
+    id: "demo-cedro",
+    demo: true,
+    productoId: null,
+    producto: "Cedro cepillado",
+    tipoMadera: "Cedro",
+    unidadMedida: "Tabla",
+    stockActual: 46,
+    titulo: "Cedro para muebles",
+    subtitulo: "Acabado limpio y veta calida",
+    descripcion: "Ideal para carpinteria fina, puertas interiores y muebles a medida.",
+    imagenUrl: "/assets/catalogo-demo-cedro.png",
+    precioTexto: "Cotizar por medida",
+    etiqueta: "Carpinteria",
+    ctaTexto: "Consultar medidas",
+    ctaUrl: "#contacto",
+    orden: 2,
+    publicado: true
+  },
+  {
+    id: "demo-mara",
+    demo: true,
+    productoId: null,
+    producto: "Mara seleccionada",
+    tipoMadera: "Mara",
+    unidadMedida: "Tablon",
+    stockActual: 19,
+    titulo: "Mara premium",
+    subtitulo: "Tablones para trabajos especiales",
+    descripcion: "Piezas escogidas para proyectos que requieren estabilidad y presencia.",
+    imagenUrl: "/assets/catalogo-demo-mara.png",
+    precioTexto: "Precio a consultar",
+    etiqueta: "Premium",
+    ctaTexto: "Pedir cotizacion",
+    ctaUrl: "#contacto",
+    orden: 3,
+    publicado: true
+  },
+  {
+    id: "demo-roble",
+    demo: true,
+    productoId: null,
+    producto: "Roble en viga",
+    tipoMadera: "Roble",
+    unidadMedida: "Viga",
+    stockActual: 32,
+    titulo: "Vigas de roble",
+    subtitulo: "Resistencia para estructuras visibles",
+    descripcion: "Formato robusto para techos, pergolas y construcciones de alto uso.",
+    imagenUrl: "/assets/catalogo-demo-roble.png",
+    precioTexto: "Desde Bs 120",
+    etiqueta: "Estructural",
+    ctaTexto: "Ver disponibilidad",
+    ctaUrl: "#contacto",
+    orden: 4,
+    publicado: true
+  },
+  {
+    id: "demo-almendrillo",
+    demo: true,
+    productoId: null,
+    producto: "Almendrillo",
+    tipoMadera: "Almendrillo",
+    unidadMedida: "Pie tablar",
+    stockActual: 128,
+    titulo: "Almendrillo por volumen",
+    subtitulo: "Buena relacion resistencia-precio",
+    descripcion: "Opcion versatil para obra, revestimientos y trabajos de taller.",
+    imagenUrl: "/assets/catalogo-demo-almendrillo.png",
+    precioTexto: "Desde Bs 18/pie",
+    etiqueta: "Volumen",
+    ctaTexto: "Cotizar volumen",
+    ctaUrl: "#contacto",
+    orden: 5,
+    publicado: true
+  },
+  {
+    id: "demo-ochoo",
+    demo: true,
+    productoId: null,
+    producto: "Ochoo",
+    tipoMadera: "Ochoo",
+    unidadMedida: "Metro cubico",
+    stockActual: 7,
+    titulo: "Ochoo para encofrado",
+    subtitulo: "Ligero y practico para obra",
+    descripcion: "Material util para trabajos temporales, moldajes y construccion general.",
+    imagenUrl: "/assets/catalogo-demo-ochoo.png",
+    precioTexto: "Por m3",
+    etiqueta: "Obra",
+    ctaTexto: "Consultar stock",
+    ctaUrl: "#contacto",
+    orden: 6,
+    publicado: true
+  }
+];
 let deferredInstallPrompt = null;
 
 function shouldUseMobileLayout() {
@@ -1651,7 +1768,9 @@ async function renderPublicCatalog() {
     error = ex.message || "No se pudo cargar el catalogo.";
   }
 
-  const destacados = anuncios.slice(0, 3);
+  const usingDemoCatalog = CATALOG_DEMO_MODE && !error && anuncios.length === 0;
+  const catalogItems = usingDemoCatalog ? CATALOG_DEMO_ITEMS : anuncios;
+  const destacados = catalogItems.slice(0, 3);
   const heroBackground = destacados[0]?.imagenUrl || "/assets/catalogo-hero.png";
   app.innerHTML = `
     <main class="public-site">
@@ -1691,10 +1810,11 @@ async function renderPublicCatalog() {
             <span class="catalog-badge">Catalogo</span>
             <h2>Maderas destacadas</h2>
           </div>
-          <p>${anuncios.length ? `${anuncios.length} publicaciones disponibles` : "Todavia no hay publicaciones activas."}</p>
+          <p>${usingDemoCatalog ? "Vista de ejemplo para revisar el diseno" : catalogItems.length ? `${catalogItems.length} publicaciones disponibles` : "Todavia no hay publicaciones activas."}</p>
         </div>
         ${error ? `<div class="public-empty">${esc(error)}</div>` : ""}
-        ${anuncios.length ? `<div class="catalog-grid">${anuncios.map(item => renderCatalogCard(item)).join("")}</div>` : `<div class="public-empty">El catalogo publico esta listo. Publica anuncios desde el panel interno para que aparezcan aqui.</div>`}
+        ${usingDemoCatalog ? `<div class="demo-notice"><strong>Catalogo de ejemplo</strong><span>Estos productos son solo una vista previa. Antes del lanzamiento oficial se desactiva el modo demo.</span></div>` : ""}
+        ${catalogItems.length ? `<div class="catalog-grid">${catalogItems.map(item => renderCatalogCard(item)).join("")}</div>` : `<div class="public-empty">El catalogo publico esta listo. Publica anuncios desde el panel interno para que aparezcan aqui.</div>`}
       </section>
 
       <section class="public-section public-contact" id="contacto">
@@ -1816,7 +1936,7 @@ function renderCatalogCard(item) {
   const ctaText = item.ctaTexto || "Solicitar cotizacion";
   const ctaHref = item.ctaUrl || "#contacto";
   return `
-    <article class="catalog-card">
+    <article class="catalog-card ${item.demo ? "demo-card" : ""}">
       <div class="catalog-card-media" style="background-image: url('${esc(image)}')">
         ${item.etiqueta ? `<span>${esc(item.etiqueta)}</span>` : ""}
       </div>

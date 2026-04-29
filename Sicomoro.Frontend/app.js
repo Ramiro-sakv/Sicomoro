@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.7.0-medidas";
+const APP_VERSION = "v1.8.0-inventario";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -37,11 +37,14 @@ const state = {
   pages: {},
   selectedClienteId: "",
   selectedProveedorId: "",
+  selectedProductoId: "",
+  inventoryFilter: "todos",
   cache: {
     clientes: [],
     proveedores: [],
     productos: [],
     inventario: [],
+    movimientosInventario: [],
     compras: [],
     ventas: [],
     deudas: [],
@@ -93,6 +96,15 @@ const estadosTransporte = [
 
 const estadosRegistro = [[1, "Activo"], [2, "Inactivo"]];
 const tiposCaja = [[1, "Ingreso"], [2, "Egreso"]];
+const tiposMovimientoInventario = {
+  1: "Entrada",
+  2: "Venta",
+  3: "Ajuste",
+  4: "Perdida",
+  5: "Devolucion",
+  6: "Compra",
+  7: "Reversion"
+};
 
 const ventaEstados = {
   1: "Pendiente",
@@ -883,16 +895,17 @@ function ventaLineHtml(detail = {}) {
 }
 
 async function loadCommon() {
-  const [clientes, proveedores, productos, inventario, compras, ventas, deudas] = await Promise.all([
+  const [clientes, proveedores, productos, inventario, movimientosInventario, compras, ventas, deudas] = await Promise.all([
     safeApi("/api/clientes", []),
     safeApi("/api/proveedores", []),
     safeApi("/api/productos", []),
     safeApi("/api/inventario", []),
+    safeApi("/api/inventario/movimientos", []),
     safeApi("/api/compras", []),
     safeApi("/api/ventas", []),
     safeApi("/api/cobros/deudas", [])
   ]);
-  Object.assign(state.cache, { clientes, proveedores, productos, inventario, compras, ventas, deudas });
+  Object.assign(state.cache, { clientes, proveedores, productos, inventario, movimientosInventario, compras, ventas, deudas });
 }
 
 function renderLogin() {
@@ -1086,6 +1099,95 @@ function findCliente(id) { return state.cache.clientes.find(x => x.id === id); }
 function findProveedor(id) { return state.cache.proveedores.find(x => x.id === id); }
 function findProducto(id) { return state.cache.productos.find(x => x.id === id); }
 function productosActivos() { return state.cache.productos.filter(x => x.estado === 1); }
+function unidadNombre(value) { return (unidades.find(([id]) => Number(id) === Number(value)) || [, "Otra"])[1]; }
+
+function inventarioProducto(productoId) {
+  return state.cache.inventario.find(x => x.productoId === productoId);
+}
+
+function movimientosProducto(productoId) {
+  return state.cache.movimientosInventario
+    .filter(x => x.productoId === productoId)
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+}
+
+function productoInventario(producto) {
+  const inv = inventarioProducto(producto.id);
+  const stockActual = Number(inv?.stockActual ?? 0);
+  const stockMinimo = Number(producto.stockMinimo ?? inv?.stockMinimo ?? 0);
+  const precioCompra = Number(producto.precioCompra ?? 0);
+  const precioVenta = Number(producto.precioVentaSugerido ?? 0);
+  const margenUnitario = Math.max(0, precioVenta - precioCompra);
+  const margenPorcentaje = precioCompra > 0 ? (margenUnitario / precioCompra) * 100 : 0;
+  const valorCosto = stockActual * precioCompra;
+  const valorVenta = stockActual * precioVenta;
+  const cobertura = stockMinimo > 0 ? Math.min(100, (stockActual / stockMinimo) * 100) : 100;
+  const bajoStock = producto.estado === 1 && stockMinimo > 0 && stockActual <= stockMinimo;
+  return {
+    ...producto,
+    inventarioId: inv?.id,
+    stockActual,
+    stockMinimo,
+    ubicacionInterna: inv?.ubicacionInterna || "",
+    valorCosto,
+    valorVenta,
+    margenUnitario,
+    margenPorcentaje,
+    cobertura,
+    bajoStock,
+    sinStock: stockActual <= 0,
+    movimientos: movimientosProducto(producto.id)
+  };
+}
+
+function productosInventario() {
+  return state.cache.productos.map(productoInventario);
+}
+
+function estadoInventarioBadge(row) {
+  if (row.estado !== 1) return badge("Inactivo", "bad");
+  if (row.sinStock) return badge("Sin stock", "bad");
+  if (row.bajoStock) return badge("Bajo stock", "warn");
+  return badge("Disponible");
+}
+
+function inventoryHealthRows() {
+  return productosInventario().filter(x => x.estado === 1);
+}
+
+function inventorySummary(rows = inventoryHealthRows()) {
+  return rows.reduce((acc, row) => {
+    acc.productos += 1;
+    acc.stock += row.stockActual;
+    acc.valorCosto += row.valorCosto;
+    acc.valorVenta += row.valorVenta;
+    acc.margenPotencial += Math.max(0, row.valorVenta - row.valorCosto);
+    if (row.bajoStock) acc.bajoStock += 1;
+    if (row.sinStock) acc.sinStock += 1;
+    return acc;
+  }, { productos: 0, stock: 0, valorCosto: 0, valorVenta: 0, margenPotencial: 0, bajoStock: 0, sinStock: 0 });
+}
+
+function stockBar(row) {
+  const width = Math.max(0, Math.min(100, row.cobertura || 0));
+  return `
+    <div class="stock-meter ${row.bajoStock ? "warning" : ""}">
+      <div style="width:${width}%"></div>
+    </div>
+  `;
+}
+
+function movimientosMiniTable(movimientos, limit = 6) {
+  const rows = movimientos.slice(0, limit);
+  if (!rows.length) return `<div class="empty">Sin movimientos registrados para este producto.</div>`;
+  return table([
+    { label: "Fecha", render: x => date(x.fecha) },
+    { label: "Tipo", render: x => esc(tiposMovimientoInventario[x.tipo] || x.tipo) },
+    { label: "Cantidad", render: x => money(x.cantidad) },
+    { label: "Costo", render: x => money(x.costoUnitario) },
+    { label: "Motivo", render: x => esc(x.motivo || "-") }
+  ], rows);
+}
 
 function renderClientes() {
   const clientes = filterRows("clientes", state.cache.clientes, ["nombreRazonSocial", "ciNit", "telefono", "ciudad"]);
@@ -1240,10 +1342,25 @@ function renderProveedores() {
 }
 
 function renderProductos() {
-  const productos = filterRows("productos", state.cache.productos, ["nombreComercial", "tipoMadera", "calidad"]);
+  const productosBase = productosInventario();
+  const productos = filterRows("productos", productosBase, [
+    "nombreComercial",
+    "tipoMadera",
+    "calidad",
+    "ubicacionInterna",
+    x => unidadNombre(x.unidadMedida)
+  ]).sort((a, b) => Number(b.bajoStock) - Number(a.bajoStock) || a.nombreComercial.localeCompare(b.nombreComercial));
   const page = paginate("productos", productos);
+  const selected = productosBase.find(x => x.id === state.selectedProductoId) || productosBase[0] || null;
+  const resumen = inventorySummary(productosBase.filter(x => x.estado === 1));
   renderShell(`
-    <section class="layout">
+    <section class="kpi-grid compact">
+      <div class="kpi"><span>Productos activos</span><strong>${resumen.productos}</strong></div>
+      <div class="kpi"><span>Stock total PT</span><strong>${money(resumen.stock)}</strong></div>
+      <div class="kpi"><span>Valor a costo</span><strong>Bs ${money(resumen.valorCosto)}</strong></div>
+      <div class="kpi"><span>Bajo stock</span><strong>${resumen.bajoStock}</strong></div>
+    </section>
+    <section class="layout product-inventory-layout">
       <div class="panel">
         <div class="panel-header"><h3>Producto</h3></div>
         <div class="panel-body">
@@ -1252,13 +1369,13 @@ function renderProductos() {
             <label class="full">Nombre comercial<input name="nombreComercial" required></label>
             <label>Tipo de madera<input name="tipoMadera" value="Tajibo" required></label>
             <label>Unidad<select name="unidadMedida">${options(unidades, 1)}</select></label>
-            <label>Largo<input name="largo" type="number" step="0.0001" value="2"></label>
-            <label>Ancho<input name="ancho" type="number" step="0.0001" value="4"></label>
-            <label>Espesor<input name="espesor" type="number" step="0.0001" value="0"></label>
+            <label>Largo pies<input name="largo" type="number" step="0.0001" value="10"></label>
+            <label>Ancho pulg.<input name="ancho" type="number" step="0.0001" value="4"></label>
+            <label>Espesor pulg.<input name="espesor" type="number" step="0.0001" value="2"></label>
             <label>Calidad<input name="calidad" value="A"></label>
-            <label>Compra<input name="precioCompra" type="number" step="0.0001" value="35"></label>
-            <label>Venta sugerida<input name="precioVentaSugerido" type="number" step="0.0001" value="55"></label>
-            <label>Stock minimo<input name="stockMinimo" type="number" step="0.0001" value="10"></label>
+            <label>Compra por PT<input name="precioCompra" type="number" step="0.0001" value="12.5"></label>
+            <label>Venta sugerida por PT<input name="precioVentaSugerido" type="number" step="0.0001" value="25"></label>
+            <label>Stock minimo PT<input name="stockMinimo" type="number" step="0.0001" value="100"></label>
             <label>Estado<select name="estado">${options(estadosRegistro, 1)}</select></label>
             <label class="full">Observaciones<textarea name="observaciones"></textarea></label>
             <div class="actions full">
@@ -1266,24 +1383,58 @@ function renderProductos() {
               <button type="button" id="limpiarProducto">Nuevo</button>
             </div>
           </form>
+          <hr class="form-separator">
+          <div class="product-focus">
+            ${selected ? `
+              <div class="product-focus-head">
+                <div>
+                  <span>Ficha operativa</span>
+                  <strong>${esc(selected.nombreComercial)}</strong>
+                  <small>${esc(selected.tipoMadera)} · ${esc(unidadNombre(selected.unidadMedida))}</small>
+                </div>
+                ${estadoInventarioBadge(selected)}
+              </div>
+              <div class="product-focus-grid">
+                <div><span>Stock actual</span><strong>${money(selected.stockActual)} PT</strong>${stockBar(selected)}</div>
+                <div><span>Stock minimo</span><strong>${money(selected.stockMinimo)} PT</strong></div>
+                <div><span>Ubicacion</span><strong>${esc(selected.ubicacionInterna || "-")}</strong></div>
+                <div><span>Margen por PT</span><strong>Bs ${money(selected.margenUnitario)}</strong><small>${money(selected.margenPorcentaje)}%</small></div>
+                <div><span>Valor a costo</span><strong>Bs ${money(selected.valorCosto)}</strong></div>
+                <div><span>Valor venta</span><strong>Bs ${money(selected.valorVenta)}</strong></div>
+              </div>
+            ` : `<div class="empty">Crea o selecciona un producto para ver su ficha operativa.</div>`}
+          </div>
+          <form id="productoStockForm" class="grid compact-form">
+            <label class="full">Ajustar stock de producto<select name="productoId" required>${entityOptions(state.cache.productos, "nombreComercial", selected?.id || "")}</select></label>
+            <label>Stock exacto PT<input name="nuevoStock" type="number" step="0.0001" value="${esc(selected?.stockActual ?? 0)}" required></label>
+            <label>Ubicacion<input name="ubicacionInterna" value="${esc(selected?.ubicacionInterna || "")}" placeholder="Galpon A / Rack 1"></label>
+            <label class="full">Motivo<input name="motivo" value="Ajuste desde ficha de producto"></label>
+            <div class="actions full"><button type="submit" class="primary">Actualizar stock</button></div>
+          </form>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Productos</h3>${searchBox("productos", "Buscar producto o madera")}</div>
+        <div class="panel-header"><h3>Productos e inventario</h3>${searchBox("productos", "Buscar producto, madera, ubicacion")}</div>
         ${table([
-          { label: "Nombre", key: "nombreComercial" },
-          { label: "Tipo", key: "tipoMadera" },
-          { label: "Compra", render: x => money(x.precioCompra) },
-          { label: "Venta", render: x => money(x.precioVentaSugerido) },
-          { label: "Minimo", render: x => money(x.stockMinimo) },
-          { label: "Estado", render: x => x.estado === 1 ? badge("Activo") : badge("Inactivo", "bad") }
+          { label: "Producto", render: x => `<strong>${esc(x.nombreComercial)}</strong><br><small>${esc(x.tipoMadera)} · ${esc(x.calidad || "-")}</small>` },
+          { label: "Medida", render: x => `${money(x.ancho)}" x ${money(x.espesor)}" x ${money(x.largo)}'` },
+          { label: "Stock", render: x => `<strong>${money(x.stockActual)} PT</strong><br>${stockBar(x)}<small>Min ${money(x.stockMinimo)} · ${esc(x.ubicacionInterna || "Sin ubicacion")}</small>` },
+          { label: "Precios", render: x => `C ${money(x.precioCompra)} / V ${money(x.precioVentaSugerido)}<br><small>Margen Bs ${money(x.margenUnitario)}</small>` },
+          { label: "Valor", render: x => `Costo Bs ${money(x.valorCosto)}<br><small>Venta Bs ${money(x.valorVenta)}</small>` },
+          { label: "Estado", render: x => estadoInventarioBadge(x) }
         ], page.rows, row => `
           <div class="split-actions">
+            <button data-focus-producto="${row.id}">Ver</button>
             <button data-edit-producto="${row.id}">Editar</button>
+            <button data-stock-producto="${row.id}">Stock</button>
             <button data-delete-producto="${row.id}" class="danger">Borrar</button>
           </div>
         `)}
         ${pager("productos", page)}
+        <div class="panel-body product-movement-panel">
+          <h3>Ultimos movimientos${selected ? ` · ${esc(selected.nombreComercial)}` : ""}</h3>
+          ${selected ? movimientosMiniTable(selected.movimientos) : `<div class="empty">Selecciona un producto para ver su historial.</div>`}
+        </div>
       </div>
     </section>
   `, "Productos");
@@ -1302,13 +1453,44 @@ function renderProductos() {
       render();
     }, "Producto guardado");
   };
-  document.getElementById("limpiarProducto").onclick = () => form.reset();
-  document.querySelectorAll("[data-edit-producto]").forEach(btn => btn.onclick = () => fillForm(form, findProducto(btn.dataset.editProducto)));
+  document.getElementById("limpiarProducto").onclick = () => {
+    form.reset();
+    form.elements.id.value = "";
+  };
+  document.getElementById("productoStockForm").onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      const data = formData(event.currentTarget);
+      await api("/api/inventario/ajuste", { method: "POST", body: JSON.stringify(data) });
+      state.selectedProductoId = data.productoId;
+      await loadCommon();
+      render();
+    }, "Stock actualizado");
+  };
+  document.getElementById("productoStockForm").elements.productoId.onchange = event => {
+    state.selectedProductoId = event.currentTarget.value;
+    renderProductos();
+  };
+  document.querySelectorAll("[data-focus-producto]").forEach(btn => btn.onclick = () => {
+    state.selectedProductoId = btn.dataset.focusProducto;
+    renderProductos();
+  });
+  document.querySelectorAll("[data-stock-producto]").forEach(btn => btn.onclick = () => {
+    state.selectedProductoId = btn.dataset.stockProducto;
+    renderProductos();
+  });
+  document.querySelectorAll("[data-edit-producto]").forEach(btn => btn.onclick = () => {
+    const producto = findProducto(btn.dataset.editProducto);
+    state.selectedProductoId = btn.dataset.editProducto;
+    fillForm(form, producto);
+    toast("Producto cargado para editar");
+  });
   document.querySelectorAll("[data-delete-producto]").forEach(btn => btn.onclick = async () => {
     const producto = findProducto(btn.dataset.deleteProducto);
     if (!confirm(`Borrar definitivamente ${producto?.nombreComercial || "producto"}? Si tiene compras, ventas o movimientos, el sistema no lo borrara para proteger el historial.`)) return;
     await safe(async () => {
       if (!await deleteWithOperationKey(`/api/productos/${btn.dataset.deleteProducto}`, "borrar producto")) return false;
+      if (state.selectedProductoId === btn.dataset.deleteProducto) state.selectedProductoId = "";
       await loadCommon();
       render();
     }, "Producto eliminado");
@@ -1316,33 +1498,155 @@ function renderProductos() {
 }
 
 function renderInventario() {
+  const rowsAll = productosInventario();
+  const activeRows = rowsAll.filter(x => x.estado === 1);
+  const summary = inventorySummary(activeRows);
+  const counts = {
+    todos: rowsAll.length,
+    bajo: rowsAll.filter(x => x.bajoStock).length,
+    sin: rowsAll.filter(x => x.estado === 1 && x.sinStock).length,
+    stock: rowsAll.filter(x => x.estado === 1 && x.stockActual > 0).length,
+    inactivos: rowsAll.filter(x => x.estado !== 1).length
+  };
+  const filteredBySearch = filterRows("inventario", rowsAll, [
+    "nombreComercial",
+    "tipoMadera",
+    "calidad",
+    "ubicacionInterna",
+    x => unidadNombre(x.unidadMedida)
+  ]);
+  const filteredRows = filteredBySearch.filter(x => {
+    if (state.inventoryFilter === "bajo") return x.bajoStock;
+    if (state.inventoryFilter === "sin") return x.estado === 1 && x.sinStock;
+    if (state.inventoryFilter === "stock") return x.estado === 1 && x.stockActual > 0;
+    if (state.inventoryFilter === "inactivos") return x.estado !== 1;
+    return true;
+  }).sort((a, b) => Number(b.bajoStock) - Number(a.bajoStock) || a.nombreComercial.localeCompare(b.nombreComercial));
+  const page = paginate("inventario", filteredRows);
+  const selected = rowsAll.find(x => x.id === state.selectedProductoId) || activeRows[0] || rowsAll[0] || null;
+  const movimientos = (selected ? selected.movimientos : state.cache.movimientosInventario)
+    .slice()
+    .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))
+    .slice(0, 30);
+  const filterButton = (id, label) => `<button type="button" data-inventory-filter="${id}" class="${state.inventoryFilter === id ? "active" : ""}">${label} <span>${counts[id]}</span></button>`;
   renderShell(`
-    <section class="layout">
+    <section class="kpi-grid compact">
+      <div class="kpi"><span>Valor inventario a costo</span><strong>Bs ${money(summary.valorCosto)}</strong></div>
+      <div class="kpi"><span>Valor proyectado venta</span><strong>Bs ${money(summary.valorVenta)}</strong></div>
+      <div class="kpi"><span>Margen potencial</span><strong>Bs ${money(summary.margenPotencial)}</strong></div>
+      <div class="kpi"><span>Alertas de stock</span><strong>${summary.bajoStock}</strong></div>
+    </section>
+    <section class="layout inventory-control-layout">
       <div class="panel">
-        <div class="panel-header"><h3>Ajuste</h3></div>
+        <div class="panel-header"><h3>Ajuste inteligente</h3></div>
         <div class="panel-body">
           <form id="inventarioForm" class="grid">
-            <label class="full">Producto<select name="productoId" required>${entityOptions(productosActivos(), "nombreComercial")}</select></label>
-            <label>Nuevo stock<input name="nuevoStock" type="number" step="0.0001" required></label>
-            <label>Ubicacion<input name="ubicacionInterna" placeholder="A1"></label>
-            <label class="full">Motivo<input name="motivo" value="Ajuste manual"></label>
+            <label class="full">Producto<select name="productoId" required>${entityOptions(state.cache.productos, "nombreComercial", selected?.id || "")}</select></label>
+            <label>Modo<select name="modoAjuste"><option value="exacto">Fijar stock exacto</option><option value="sumar">Sumar entrada</option><option value="restar">Restar salida/perdida</option></select></label>
+            <label>Cantidad PT<input name="cantidadMovimiento" type="number" step="0.0001" min="0" value="${esc(selected?.stockActual ?? 0)}" required></label>
+            <label>Stock resultante<input name="nuevoStock" type="number" step="0.0001" readonly required></label>
+            <label>Ubicacion<input name="ubicacionInterna" value="${esc(selected?.ubicacionInterna || "")}" placeholder="Galpon A / Rack 1"></label>
+            <label class="full">Motivo<input name="motivo" value="Ajuste manual de inventario"></label>
             <div class="actions full"><button class="primary">Aplicar</button></div>
           </form>
+          <div class="inventory-current-card" id="inventoryCurrentCard">
+            ${selected ? `
+              <span>Lectura actual</span>
+              <strong>${esc(selected.nombreComercial)}</strong>
+              <div>${money(selected.stockActual)} PT disponibles · minimo ${money(selected.stockMinimo)}</div>
+              ${stockBar(selected)}
+              <small>${esc(selected.ubicacionInterna || "Sin ubicacion")}</small>
+            ` : `<span>Sin productos registrados</span>`}
+          </div>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Stock</h3></div>
+        <div class="panel-header"><h3>Inventario operativo</h3>${searchBox("inventario", "Buscar producto, tipo o ubicacion")}</div>
+        <div class="inventory-filter segmented">
+          ${filterButton("todos", "Todos")}
+          ${filterButton("bajo", "Bajo stock")}
+          ${filterButton("sin", "Sin stock")}
+          ${filterButton("stock", "Con stock")}
+          ${filterButton("inactivos", "Inactivos")}
+        </div>
         ${table([
-          { label: "Producto", key: "producto" },
-          { label: "Stock", render: x => money(x.stockActual) },
-          { label: "Minimo", render: x => money(x.stockMinimo) },
-          { label: "Ubicacion", key: "ubicacionInterna" },
-          { label: "Estado", render: x => Number(x.stockActual) <= Number(x.stockMinimo) ? badge("Bajo", "bad") : badge("OK") }
-        ], state.cache.inventario)}
+          { label: "Producto", render: x => `<strong>${esc(x.nombreComercial)}</strong><br><small>${esc(x.tipoMadera)} · ${esc(unidadNombre(x.unidadMedida))}</small>` },
+          { label: "Stock", render: x => `<strong>${money(x.stockActual)} PT</strong>${stockBar(x)}<small>Min ${money(x.stockMinimo)}</small>` },
+          { label: "Ubicacion", render: x => esc(x.ubicacionInterna || "-") },
+          { label: "Valor costo", render: x => `Bs ${money(x.valorCosto)}` },
+          { label: "Valor venta", render: x => `Bs ${money(x.valorVenta)}` },
+          { label: "Estado", render: x => estadoInventarioBadge(x) }
+        ], page.rows, row => `
+          <div class="split-actions">
+            <button data-inv-select="${row.id}">Ajustar</button>
+            <button data-inv-history="${row.id}">Historial</button>
+          </div>
+        `)}
+        ${pager("inventario", page)}
+      </div>
+      <div class="panel full-panel">
+        <div class="panel-header">
+          <h3>Movimientos ${selected ? `· ${esc(selected.nombreComercial)}` : "recientes"}</h3>
+        </div>
+        ${table([
+          { label: "Fecha", render: x => date(x.fecha) },
+          { label: "Producto", render: x => esc(findProducto(x.productoId)?.nombreComercial || x.productoId) },
+          { label: "Tipo", render: x => esc(tiposMovimientoInventario[x.tipo] || x.tipo) },
+          { label: "Cantidad", render: x => money(x.cantidad) },
+          { label: "Costo", render: x => money(x.costoUnitario) },
+          { label: "Motivo", render: x => esc(x.motivo || "-") }
+        ], movimientos)}
       </div>
     </section>
   `, "Inventario");
-  document.getElementById("inventarioForm").onsubmit = submitJson("/api/inventario/ajuste", async () => { await loadCommon(); render(); });
+  wireListControls("inventario", renderInventario);
+  document.querySelectorAll("[data-inventory-filter]").forEach(btn => btn.onclick = () => {
+    state.inventoryFilter = btn.dataset.inventoryFilter;
+    state.pages.inventario = 1;
+    renderInventario();
+  });
+  const form = document.getElementById("inventarioForm");
+  const updateAdjustment = () => {
+    const product = productoInventario(findProducto(form.elements.productoId.value) || {});
+    const amount = Number(form.elements.cantidadMovimiento.value || 0);
+    const mode = form.elements.modoAjuste.value;
+    let result = amount;
+    if (mode === "sumar") result = product.stockActual + amount;
+    if (mode === "restar") result = Math.max(0, product.stockActual - amount);
+    form.elements.nuevoStock.value = Number(result.toFixed(4));
+  };
+  ["productoId", "modoAjuste", "cantidadMovimiento"].forEach(name => {
+    form.elements[name]?.addEventListener("input", updateAdjustment);
+    form.elements[name]?.addEventListener("change", () => {
+      if (name === "productoId") {
+        const selectedRow = productoInventario(findProducto(form.elements.productoId.value) || {});
+        form.elements.ubicacionInterna.value = selectedRow.ubicacionInterna || "";
+        state.selectedProductoId = form.elements.productoId.value;
+      }
+      updateAdjustment();
+    });
+  });
+  updateAdjustment();
+  form.onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      updateAdjustment();
+      const body = {
+        productoId: form.elements.productoId.value,
+        nuevoStock: Number(form.elements.nuevoStock.value || 0),
+        ubicacionInterna: form.elements.ubicacionInterna.value || null,
+        motivo: form.elements.motivo.value || "Ajuste manual de inventario"
+      };
+      await api("/api/inventario/ajuste", { method: "POST", body: JSON.stringify(body) });
+      state.selectedProductoId = body.productoId;
+      await loadCommon();
+      render();
+    }, "Inventario actualizado");
+  };
+  document.querySelectorAll("[data-inv-select], [data-inv-history]").forEach(btn => btn.onclick = () => {
+    state.selectedProductoId = btn.dataset.invSelect || btn.dataset.invHistory;
+    renderInventario();
+  });
 }
 
 function renderCompras() {

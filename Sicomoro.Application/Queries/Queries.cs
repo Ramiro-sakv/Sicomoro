@@ -76,7 +76,16 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
     {
         var inventario = await uow.Inventario.ListarAsync(ct);
         var productos = await uow.Productos.ListarAsync(ct);
-        return inventario.Select(x => x.ToDto(productos.First(p => p.Id == x.ProductoMaderaId))).ToList();
+        return productos
+            .OrderBy(x => x.NombreComercial)
+            .Select(producto =>
+            {
+                var stock = inventario.FirstOrDefault(x => x.ProductoMaderaId == producto.Id);
+                return stock is null
+                    ? new InventarioDto(Guid.Empty, producto.Id, producto.NombreComercial, 0, producto.StockMinimo, null)
+                    : stock.ToDto(producto);
+            })
+            .ToList();
     }
 
     public async Task<List<MovimientoInventarioDto>> Handle(ListarMovimientosInventarioQuery r, CancellationToken ct) =>
@@ -117,9 +126,20 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
 
     public async Task<List<InventarioDto>> Handle(ReporteInventarioBajoQuery r, CancellationToken ct)
     {
-        var bajo = await uow.Inventario.ObtenerBajoStockAsync(ct);
+        var inventario = await uow.Inventario.ListarAsync(ct);
         var productos = await uow.Productos.ListarAsync(ct);
-        return bajo.Select(x => x.ToDto(productos.First(p => p.Id == x.ProductoMaderaId))).ToList();
+        return productos
+            .Where(x => x.Estado == EstadoRegistro.Activo)
+            .Select(producto =>
+            {
+                var stock = inventario.FirstOrDefault(x => x.ProductoMaderaId == producto.Id);
+                return stock is null
+                    ? new InventarioDto(Guid.Empty, producto.Id, producto.NombreComercial, 0, producto.StockMinimo, null)
+                    : stock.ToDto(producto);
+            })
+            .Where(x => x.StockMinimo > 0 && x.StockActual <= x.StockMinimo)
+            .OrderBy(x => x.StockActual - x.StockMinimo)
+            .ToList();
     }
 
     public async Task<List<ClienteDto>> Handle(ReporteClientesDeudoresQuery r, CancellationToken ct)

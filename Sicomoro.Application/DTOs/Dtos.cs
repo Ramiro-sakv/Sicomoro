@@ -4,7 +4,7 @@ namespace Sicomoro.Application.DTOs;
 
 public sealed record ClienteDto(Guid Id, string NombreRazonSocial, string? CiNit, string? Telefono, string? Direccion, string? Ciudad, string? Notas, EstadoRegistro Estado, decimal DeudaTotal);
 public sealed record ProveedorDto(Guid Id, string Nombre, string LugarOrigen, string? Telefono, string? Direccion, string? TipoMadera, string? Notas);
-public sealed record ProductoDto(Guid Id, string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, EstadoRegistro Estado);
+public sealed record ProductoDto(Guid Id, string NombreComercial, string TipoMadera, UnidadMedida UnidadMedida, decimal Largo, decimal Ancho, decimal Espesor, string? Calidad, decimal PrecioCompra, decimal PrecioVentaSugerido, decimal StockMinimo, EstadoRegistro Estado, string? Observaciones);
 public sealed record InventarioDto(Guid Id, Guid ProductoId, string Producto, decimal StockActual, decimal StockMinimo, string? UbicacionInterna);
 public sealed record MovimientoInventarioDto(Guid Id, DateTime Fecha, Guid ProductoId, TipoMovimientoInventario Tipo, decimal Cantidad, decimal CostoUnitario, string Motivo);
 public sealed record TransporteDto(Guid Id, string? Camion, string? Chofer, string? Placa, string LugarOrigen, DateTime? FechaSalida, DateTime? FechaLlegada, decimal CostoTransporte, EstadoTransporte Estado, string? Observaciones, Guid? CompraId);

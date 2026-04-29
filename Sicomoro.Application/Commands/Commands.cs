@@ -652,7 +652,7 @@ public static class MappingExtensions
 {
     public static ClienteDto ToDto(this Cliente x, decimal deuda) => new(x.Id, x.NombreRazonSocial, x.CiNit, x.Telefono, x.Direccion, x.Ciudad, x.Notas, x.Estado, deuda);
     public static ProveedorDto ToDto(this Proveedor x) => new(x.Id, x.Nombre, x.LugarOrigen, x.Telefono, x.Direccion, x.TipoMadera, x.Notas);
-    public static ProductoDto ToDto(this ProductoMadera x) => new(x.Id, x.NombreComercial, x.TipoMadera, x.UnidadMedida, x.Largo, x.Ancho, x.Espesor, x.Calidad, x.PrecioCompra, x.PrecioVentaSugerido, x.StockMinimo, x.Estado);
+    public static ProductoDto ToDto(this ProductoMadera x) => new(x.Id, x.NombreComercial, x.TipoMadera, x.UnidadMedida, x.Largo, x.Ancho, x.Espesor, x.Calidad, x.PrecioCompra, x.PrecioVentaSugerido, x.StockMinimo, x.Estado, x.Observaciones);
     public static InventarioDto ToDto(this Inventario x, ProductoMadera producto) => new(x.Id, x.ProductoMaderaId, producto.NombreComercial, x.StockActual, producto.StockMinimo, x.UbicacionInterna);
     public static TransporteDto ToDto(this Transporte x) => new(x.Id, x.Camion, x.Chofer, x.Placa, x.LugarOrigen, x.FechaSalida, x.FechaLlegada, x.CostoTransporte, x.Estado, x.Observaciones, x.CompraId);
     public static CompraDto ToDto(this Compra x) => new(

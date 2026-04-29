@@ -899,6 +899,111 @@ th {
   align-items: start;
 }
 
+.product-inventory-layout,
+.inventory-control-layout {
+  align-items: start;
+}
+
+.product-focus {
+  display: grid;
+  gap: 12px;
+}
+
+.product-focus-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.product-focus-head span,
+.product-focus-grid span,
+.inventory-current-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-focus-head strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 18px;
+}
+
+.product-focus-head small,
+.product-focus-grid small,
+.inventory-current-card small {
+  color: var(--muted);
+}
+
+.product-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.product-focus-grid > div,
+.inventory-current-card {
+  border: 1px solid #dbe6df;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f6faf8);
+  padding: 10px;
+}
+
+.product-focus-grid strong,
+.inventory-current-card strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 16px;
+}
+
+.compact-form {
+  margin-top: 12px;
+}
+
+.product-movement-panel {
+  border-top: 1px solid var(--line);
+}
+
+.product-movement-panel h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.stock-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7eee9;
+  margin: 6px 0;
+}
+
+.stock-meter > div {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f6f4f, #67a57f);
+}
+
+.stock-meter.warning > div {
+  background: linear-gradient(90deg, #a66f1f, #d9a648);
+}
+
+.inventory-filter {
+  margin: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.inventory-filter button span {
+  margin-left: 6px;
+  color: inherit;
+  opacity: .75;
+}
+
+.inventory-current-card {
+  margin-top: 14px;
+}
+
 .install-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1501,6 +1606,7 @@ html.mobile-device .grid,
 html.mobile-device .kpi-grid,
 html.mobile-device .report-quick,
 html.mobile-device .detail-grid,
+html.mobile-device .product-focus-grid,
 html.mobile-device .install-grid,
 html.mobile-device .chart-summary,
 html.mobile-device .venta-summary-grid,
@@ -1910,6 +2016,7 @@ html.mobile-device .client-access-card {
     max-width: none;
   }
   .detail-grid,
+  .product-focus-grid,
   .install-grid,
   .chart-summary,
   .venta-summary-grid,

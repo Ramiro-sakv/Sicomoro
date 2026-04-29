@@ -335,6 +335,13 @@ public sealed class CompraDetalle : EntidadBase
     public ProductoMadera? ProductoMadera { get; private set; }
     public decimal Cantidad { get; private set; }
     public decimal PrecioCompra { get; private set; }
+
+    public void ActualizarPrecioCompra(decimal precioCompra)
+    {
+        if (precioCompra < 0) throw new InvalidOperationException("El precio de compra no puede ser negativo.");
+        PrecioCompra = precioCompra;
+        MarcarActualizado();
+    }
 }
 
 public sealed class Transporte : EntidadBase

@@ -1,9 +1,9 @@
-const CACHE_NAME = "sicomoro-pwa-v1.6.0-ventas";
+const CACHE_NAME = "sicomoro-pwa-v1.7.0-medidas";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260429-160",
-  "/app.js?v=20260429-160",
+  "/styles.css?v=20260429-170",
+  "/app.js?v=20260429-170",
   "/manifest.webmanifest",
   "/assets/catalogo-hero.png",
   "/icons/icon-192.png",

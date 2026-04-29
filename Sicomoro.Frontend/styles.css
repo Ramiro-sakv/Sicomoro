@@ -55,6 +55,18 @@ button:hover { border-color: #b8c6bf; }
 
 .primary:hover { background: var(--green-2); }
 
+.secondary {
+  background: #edf5f0;
+  border-color: #c8d9cf;
+  color: var(--green-2);
+}
+
+.compact {
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
 .danger {
   background: #fff5f5;
   border-color: #efc4c4;
@@ -625,9 +637,9 @@ th {
 
 .line-item {
   display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) repeat(4, minmax(78px, .5fr)) minmax(128px, .75fr) minmax(112px, .65fr) minmax(96px, .55fr) minmax(130px, .75fr) minmax(132px, .75fr) minmax(174px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
-  align-items: end;
+  align-items: stretch;
   padding: 10px 0;
   border-top: 1px solid var(--line);
 }
@@ -639,6 +651,80 @@ th {
 
 .line-item[data-compra-line] {
   grid-template-columns: minmax(180px, 1.7fr) minmax(92px, .7fr) minmax(105px, .8fr) auto;
+  align-items: end;
+}
+
+.line-item[data-venta-line] {
+  grid-template-columns: minmax(0, 1fr) minmax(150px, .22fr) minmax(190px, .28fr) auto;
+  align-items: start;
+  border: 1px solid #d9e5de;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.line-item[data-venta-line]:first-child {
+  margin-top: 0;
+}
+
+.venta-line-main {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(4, minmax(108px, .65fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.measure-section {
+  grid-column: 1 / -1;
+  border: 1px solid #e1ebe5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdfc, #f4faf6);
+  padding: 10px;
+}
+
+.measure-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.measure-header strong,
+.measure-header span {
+  display: block;
+}
+
+.measure-header span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.measure-list {
+  display: grid;
+  gap: 8px;
+}
+
+.measure-row {
+  display: grid;
+  grid-template-columns: minmax(78px, .55fr) repeat(3, minmax(94px, .72fr)) minmax(100px, .65fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.measure-volume {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #d4dfd8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--green-2);
+  font-weight: 700;
+  padding: 8px 10px;
 }
 
 .line-product {
@@ -1421,7 +1507,9 @@ html.mobile-device .venta-summary-grid,
 html.mobile-device .payment-preview,
 html.mobile-device .venta-hero-metrics,
 html.mobile-device .line-item,
-html.mobile-device .line-item[data-compra-line] {
+html.mobile-device .line-item[data-compra-line],
+html.mobile-device .venta-line-main,
+html.mobile-device .measure-row {
   grid-template-columns: 1fr;
 }
 
@@ -1680,6 +1768,10 @@ html.mobile-device .client-access-card {
   .line-item[data-compra-line] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .venta-line-main,
+  .measure-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .sales-layout {
     grid-template-columns: 1fr;
   }
@@ -1824,7 +1916,9 @@ html.mobile-device .client-access-card {
   .payment-preview,
   .venta-hero-metrics,
   .line-item,
-  .line-item[data-compra-line] {
+  .line-item[data-compra-line],
+  .venta-line-main,
+  .measure-row {
     grid-template-columns: 1fr;
   }
   .segmented {
@@ -1876,6 +1970,11 @@ html.mobile-device .client-access-card {
 
   .line-item button {
     width: 100%;
+  }
+
+  .measure-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .table-wrap {

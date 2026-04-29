@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.6.0-ventas";
+const APP_VERSION = "v1.7.0-medidas";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -586,18 +586,37 @@ function lineInput(row, name) {
   return row.querySelector(`[name="${name}"]`);
 }
 
+function measureInput(row, name) {
+  return row.querySelector(`[name="${name}"]`);
+}
+
 function findInventario(productoId) {
   return state.cache.inventario.find(x => x.productoId === productoId);
 }
 
+const MEASURE_BLOCK_TITLE = "Medidas de madera:";
+
+function stripMeasurementBlock(value = "") {
+  const text = String(value || "");
+  const marker = `\n\n${MEASURE_BLOCK_TITLE}\n`;
+  const index = text.indexOf(marker);
+  if (index >= 0) return text.slice(0, index).trim();
+  const directIndex = text.indexOf(MEASURE_BLOCK_TITLE);
+  if (directIndex >= 0) return text.slice(0, directIndex).trim();
+  return text.trim();
+}
+
 function readVentaDetalles(form) {
-  const detalles = Array.from(form.querySelectorAll("[data-venta-line]")).map(row => ({
-    productoId: lineInput(row, "productoId")?.value,
-    cantidad: Number(lineInput(row, "cantidad")?.value || 0),
-    precioUnitario: Number(lineInput(row, "precioUnitario")?.value || 0),
-    descuento: Number(lineInput(row, "descuento")?.value || 0),
-    pricingStrategy: lineInput(row, "pricingStrategy")?.value || "normal"
-  })).filter(x => x.productoId && x.cantidad > 0);
+  const detalles = Array.from(form.querySelectorAll("[data-venta-line]")).map(row => {
+    calculateVentaLine(row);
+    return {
+      productoId: lineInput(row, "productoId")?.value,
+      cantidad: Number(lineInput(row, "cantidad")?.value || 0),
+      precioUnitario: Number(lineInput(row, "precioUnitario")?.value || 0),
+      descuento: Number(lineInput(row, "descuento")?.value || 0),
+      pricingStrategy: lineInput(row, "pricingStrategy")?.value || "normal"
+    };
+  }).filter(x => x.productoId && x.cantidad > 0);
   if (!detalles.length) throw new Error("Agrega al menos un producto a la venta.");
   return detalles;
 }
@@ -620,6 +639,7 @@ function wireLineItems(containerId, buttonId, rowHtml, priceField) {
   const wire = () => {
     container.querySelectorAll("[data-remove-line]").forEach(btn => btn.onclick = () => {
       if (container.children.length > 1) btn.closest(".line-item").remove();
+      updateVentaSummary();
     });
     container.querySelectorAll("[data-product-select]").forEach(select => select.onchange = () => fillLinePrice(select, priceField));
     container.querySelectorAll("[data-venta-line]").forEach(wireVentaLineCalculator);
@@ -643,36 +663,87 @@ function fillLinePrice(select, field) {
 
 function fillVentaLineDimensions(row, producto) {
   if (!producto) return;
-  const largo = lineInput(row, "largoPies");
-  const ancho = lineInput(row, "anchoPulgadas");
-  const espesor = lineInput(row, "espesorPulgadas");
-  if (largo && !Number(largo.value)) largo.value = numberText(producto.largo);
-  if (ancho && !Number(ancho.value)) ancho.value = numberText(producto.ancho);
-  if (espesor && !Number(espesor.value)) espesor.value = numberText(producto.espesor);
+  row.querySelectorAll("[data-measure-row]").forEach(measureRow => {
+    const largo = measureInput(measureRow, "largoPies");
+    const ancho = measureInput(measureRow, "anchoPulgadas");
+    const espesor = measureInput(measureRow, "espesorPulgadas");
+    if (largo && !Number(largo.value)) largo.value = numberText(producto.largo);
+    if (ancho && !Number(ancho.value)) ancho.value = numberText(producto.ancho);
+    if (espesor && !Number(espesor.value)) espesor.value = numberText(producto.espesor);
+  });
   calculateVentaLine(row);
 }
 
 function wireVentaLineCalculator(row) {
-  if (row.dataset.calculatorReady === "1") return;
-  row.dataset.calculatorReady = "1";
-  ["piezas", "largoPies", "anchoPulgadas", "espesorPulgadas", "cantidad", "precioUnitario", "descuento", "pricingStrategy"].forEach(name => {
-    lineInput(row, name)?.addEventListener("input", () => calculateVentaLine(row));
-    lineInput(row, name)?.addEventListener("change", () => calculateVentaLine(row));
+  if (row.dataset.calculatorReady !== "1") {
+    row.dataset.calculatorReady = "1";
+    ["cantidad", "precioUnitario", "descuento", "pricingStrategy"].forEach(name => {
+      lineInput(row, name)?.addEventListener("input", () => calculateVentaLine(row));
+      lineInput(row, name)?.addEventListener("change", () => calculateVentaLine(row));
+    });
+    row.querySelector("[data-add-measure]")?.addEventListener("click", () => {
+      const list = row.querySelector("[data-measure-list]");
+      list?.insertAdjacentHTML("beforeend", measureRowHtml());
+      fillVentaLineDimensions(row, findProducto(lineInput(row, "productoId")?.value));
+      wireVentaLineCalculator(row);
+      calculateVentaLine(row);
+    });
+  }
+  row.querySelectorAll("[data-measure-row]").forEach(measureRow => {
+    if (measureRow.dataset.measureReady === "1") return;
+    measureRow.dataset.measureReady = "1";
+    ["piezas", "largoPies", "anchoPulgadas", "espesorPulgadas"].forEach(name => {
+      const input = measureInput(measureRow, name);
+      input?.addEventListener("input", () => {
+        measureRow.dataset.touched = "1";
+        calculateVentaLine(row);
+      });
+      input?.addEventListener("change", () => {
+        measureRow.dataset.touched = "1";
+        calculateVentaLine(row);
+      });
+    });
+    measureRow.querySelector("[data-remove-measure]")?.addEventListener("click", () => {
+      const rows = row.querySelectorAll("[data-measure-row]");
+      if (rows.length > 1) measureRow.remove();
+      else measureRow.querySelectorAll("input").forEach(input => input.value = "");
+      calculateVentaLine(row);
+    });
   });
   fillVentaLineDimensions(row, findProducto(lineInput(row, "productoId")?.value));
   calculateVentaLine(row);
 }
 
-function calculateVentaLine(row) {
-  const piezas = Number(lineInput(row, "piezas")?.value || 0);
-  const largoPies = Number(lineInput(row, "largoPies")?.value || 0);
-  const anchoPulgadas = Number(lineInput(row, "anchoPulgadas")?.value || 0);
-  const espesorPulgadas = Number(lineInput(row, "espesorPulgadas")?.value || 0);
-  const cantidadInput = lineInput(row, "cantidad");
+function calculateMeasureVolume(measureRow) {
+  const piezas = Number(measureInput(measureRow, "piezas")?.value || 0);
+  const largoPies = Number(measureInput(measureRow, "largoPies")?.value || 0);
+  const anchoPulgadas = Number(measureInput(measureRow, "anchoPulgadas")?.value || 0);
+  const espesorPulgadas = Number(measureInput(measureRow, "espesorPulgadas")?.value || 0);
+  const completo = piezas > 0 && largoPies > 0 && anchoPulgadas > 0 && espesorPulgadas > 0;
+  const volumen = completo ? (piezas * largoPies * anchoPulgadas * espesorPulgadas) / 12 : 0;
+  const result = measureRow.querySelector("[data-measure-volume]");
+  if (result) result.textContent = completo ? `${money(volumen)} PT` : "-";
+  return { piezas, largoPies, anchoPulgadas, espesorPulgadas, volumen, completo };
+}
 
-  if (piezas > 0 && largoPies > 0 && anchoPulgadas > 0 && espesorPulgadas > 0 && cantidadInput) {
-    const piesTablares = (piezas * largoPies * anchoPulgadas * espesorPulgadas) / 12;
-    cantidadInput.value = piesTablares.toFixed(4);
+function ventaLineMeasures(row) {
+  return Array.from(row.querySelectorAll("[data-measure-row]")).map(calculateMeasureVolume);
+}
+
+function ventaLinePieces(row) {
+  return ventaLineMeasures(row).reduce((sum, item) => sum + (item.completo ? item.piezas : 0), 0);
+}
+
+function calculateVentaLine(row) {
+  const cantidadInput = lineInput(row, "cantidad");
+  const measures = ventaLineMeasures(row);
+  const totalPies = measures.reduce((sum, item) => sum + item.volumen, 0);
+  const anyTouched = Array.from(row.querySelectorAll("[data-measure-row]")).some(measureRow => measureRow.dataset.touched === "1");
+
+  if (cantidadInput && totalPies > 0) {
+    cantidadInput.value = totalPies.toFixed(4);
+  } else if (cantidadInput && anyTouched) {
+    cantidadInput.value = "";
   }
 
   const cantidad = Number(cantidadInput?.value || 0);
@@ -702,7 +773,7 @@ function ventaTotalsFromForm(form = document.getElementById("ventaForm")) {
   if (!form) return { lineas: 0, piezas: 0, cantidad: 0, subtotal: 0, descuento: 0, total: 0, stockIssues: 0 };
   return Array.from(form.querySelectorAll("[data-venta-line]")).reduce((acc, row) => {
     const productoId = lineInput(row, "productoId")?.value;
-    const piezas = Number(lineInput(row, "piezas")?.value || 0);
+    const piezas = ventaLinePieces(row);
     const cantidad = Number(lineInput(row, "cantidad")?.value || 0);
     const precio = Number(lineInput(row, "precioUnitario")?.value || 0);
     const descuento = Number(lineInput(row, "descuento")?.value || 0);
@@ -743,13 +814,46 @@ function updateVentaSummary() {
   }
 }
 
+function buildVentaMeasurementBlock(form) {
+  const lines = Array.from(form.querySelectorAll("[data-venta-line]")).map((row, index) => {
+    const producto = findProducto(lineInput(row, "productoId")?.value);
+    const measures = ventaLineMeasures(row).filter(x => x.completo);
+    if (!producto || !measures.length) return "";
+    const detail = measures
+      .map(x => `${x.piezas} pza x ${x.anchoPulgadas}" x ${x.espesorPulgadas}" x ${x.largoPies}' = ${money(x.volumen)} PT`)
+      .join("; ");
+    const total = Number(lineInput(row, "cantidad")?.value || 0);
+    return `${index + 1}. ${producto.nombreComercial}: ${detail}. Total ${money(total)} PT.`;
+  }).filter(Boolean);
+  return lines.length ? `${MEASURE_BLOCK_TITLE}\n${lines.join("\n")}` : "";
+}
+
+function ventaObservacionesConMedidas(rawObservaciones, form) {
+  const base = stripMeasurementBlock(rawObservaciones);
+  const block = buildVentaMeasurementBlock(form);
+  return [base, block].filter(Boolean).join("\n\n");
+}
+
 function compraLineHtml(detail = {}) {
   return `
     <div class="line-item" data-compra-line>
       <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
-      <label>Cantidad<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
-      <label>Precio compra<input name="precioCompra" type="number" step="0.0001" value="${esc(detail.precioCompra ?? "")}" required></label>
+      <label>Cantidad / pies tablares<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
+      <label>Precio compra por PT<input name="precioCompra" type="number" step="0.0001" value="${esc(detail.precioCompra ?? "")}" placeholder="12.5" required></label>
       <button type="button" class="danger" data-remove-line>Quitar</button>
+    </div>
+  `;
+}
+
+function measureRowHtml(detail = {}) {
+  return `
+    <div class="measure-row" data-measure-row>
+      <label>Piezas<input name="piezas" type="number" step="1" min="0" placeholder="4" value="${esc(detail.piezas ?? "")}"></label>
+      <label>Ancho pulg.<input name="anchoPulgadas" type="number" step="0.0001" min="0" placeholder="3" value="${esc(detail.anchoPulgadas ?? "")}"></label>
+      <label>Espesor pulg.<input name="espesorPulgadas" type="number" step="0.0001" min="0" placeholder="2" value="${esc(detail.espesorPulgadas ?? "")}"></label>
+      <label>Largo pies<input name="largoPies" type="number" step="0.0001" min="0" placeholder="10" value="${esc(detail.largoPies ?? "")}"></label>
+      <div class="measure-volume" data-measure-volume>-</div>
+      <button type="button" class="ghost danger compact" data-remove-measure>Quitar</button>
     </div>
   `;
 }
@@ -757,15 +861,20 @@ function compraLineHtml(detail = {}) {
 function ventaLineHtml(detail = {}) {
   return `
     <div class="line-item" data-venta-line>
-      <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
-      <label>Piezas<input name="piezas" type="number" step="1" min="0" placeholder="Ej: 4"></label>
-      <label>Largo pies<input name="largoPies" type="number" step="0.0001" min="0" placeholder="Ej: 10"></label>
-      <label>Ancho pulg.<input name="anchoPulgadas" type="number" step="0.0001" min="0" placeholder="Ej: 4"></label>
-      <label>Espesor pulg.<input name="espesorPulgadas" type="number" step="0.0001" min="0" placeholder="Ej: 2"></label>
-      <label>Cantidad / pies tablares<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" required></label>
-      <label>Precio unitario<input name="precioUnitario" type="number" step="0.0001" value="${esc(detail.precioUnitario ?? "")}" required></label>
-      <label>Descuento<input name="descuento" type="number" step="0.0001" value="${esc(detail.descuento ?? 0)}"></label>
-      <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+      <div class="venta-line-main">
+        <label class="line-product">Producto<select name="productoId" data-product-select required>${entityOptions(productosActivos(), "nombreComercial", detail.productoId)}</select></label>
+        <label>Total PT<input name="cantidad" type="number" step="0.0001" value="${esc(detail.cantidad ?? "")}" readonly required></label>
+        <label>Precio por PT<input name="precioUnitario" type="number" step="0.0001" value="${esc(detail.precioUnitario ?? "")}" required></label>
+        <label>Descuento<input name="descuento" type="number" step="0.0001" value="${esc(detail.descuento ?? 0)}"></label>
+        <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+      </div>
+      <div class="measure-section">
+        <div class="measure-header">
+          <div><strong>Planilla de medidas</strong><span>piezas x ancho x espesor x largo / 12</span></div>
+          <button type="button" class="secondary compact" data-add-measure>Agregar medida</button>
+        </div>
+        <div class="measure-list" data-measure-list>${measureRowHtml()}</div>
+      </div>
       <div class="line-stock" data-line-stock><span>Selecciona producto</span><strong>-</strong></div>
       <div class="line-math" data-line-total>Complete medidas para calcular</div>
       <button type="button" class="danger" data-remove-line>Quitar</button>
@@ -1378,7 +1487,7 @@ function renderVentas() {
                 <strong>Productos vendidos</strong>
                 <button type="button" id="addVentaLine">Agregar producto</button>
               </div>
-              <p class="hint">Para vender por madera medida: piezas x largo en pies x ancho en pulgadas x espesor en pulgadas / 12. El resultado se guarda como cantidad en pies tablares.</p>
+              <p class="hint">Registra varias medidas del mismo producto como en el cuaderno. El sistema suma pies tablares por fila y descuenta el stock total del producto.</p>
               <div id="ventaLines">${ventaLineHtml()}</div>
             </div>
             <div class="full venta-summary-card">
@@ -1395,7 +1504,7 @@ function renderVentas() {
                 <div><span>Saldo estimado</span><strong>Bs <b id="ventaSaldoPreview">0,00</b></strong></div>
               </div>
             </div>
-            <label class="full">Observaciones<input name="observaciones"></label>
+            <label class="full">Observaciones<textarea name="observaciones" rows="3"></textarea></label>
             <div class="actions full">
               <button class="primary" data-save-venta="draft">Guardar borrador</button>
               <button type="button" class="primary" id="guardarConfirmarVenta">Guardar y confirmar</button>
@@ -1436,7 +1545,7 @@ function renderVentas() {
       clienteId: data.clienteId,
       metodoPago: data.metodoPago,
       fechaVencimiento: toIsoDate(data.fechaVencimiento),
-      observaciones: data.observaciones,
+      observaciones: ventaObservacionesConMedidas(data.observaciones, ventaForm),
       detalles: readVentaDetalles(ventaForm)
     };
     if (id) {
@@ -1479,7 +1588,7 @@ function renderVentas() {
     ventaForm.elements.clienteId.value = venta.clienteId;
     ventaForm.elements.metodoPago.value = venta.metodoPago || 5;
     ventaForm.elements.fechaVencimiento.value = date(venta.fechaVencimiento) === "-" ? "" : date(venta.fechaVencimiento);
-    ventaForm.elements.observaciones.value = venta.observaciones || "";
+    ventaForm.elements.observaciones.value = stripMeasurementBlock(venta.observaciones || "");
     document.getElementById("ventaLines").innerHTML = (venta.detalles?.length ? venta.detalles : [{}]).map(ventaLineHtml).join("");
     wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
     if (montoPagadoInput) montoPagadoInput.value = String(venta.montoPagado || 0);

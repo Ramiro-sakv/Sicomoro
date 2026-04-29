@@ -35,6 +35,7 @@ public sealed record ActualizarEstadoTransporteCommand(Guid Id, EstadoTransporte
 public sealed record CrearCompraCommand(Guid ProveedorId, string Origen, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<CompraDetalleInput> Detalles) : IRequest<Guid>;
 public sealed record ActualizarCompraCommand(Guid CompraId, Guid ProveedorId, string Origen, DateTime FechaCompra, DateTime? FechaEstimadaLlegada, decimal CostoTransporte, decimal OtrosCostos, string? Observaciones, IReadOnlyCollection<CompraDetalleInput> Detalles) : IRequest<CompraDto>;
 public sealed record RecibirCompraCommand(Guid CompraId) : IRequest<bool>;
+public sealed record RecalcularCostoCompraCommand(Guid CompraId, decimal PrecioCompraUnitario, string? ClaveOperacion = null) : IRequest<CompraDto>;
 public sealed record CrearVentaCommand(Guid ClienteId, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, IReadOnlyCollection<VentaDetalleInput> Detalles) : IRequest<Guid>;
 public sealed record ActualizarVentaCommand(Guid VentaId, Guid ClienteId, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, IReadOnlyCollection<VentaDetalleInput> Detalles) : IRequest<VentaDto>;
 public sealed record ConfirmarVentaCommand(Guid VentaId, decimal MontoPagado) : IRequest<VentaDto>;
@@ -369,10 +370,11 @@ public sealed class AjustarInventarioHandler(IUnitOfWork uow, ICurrentUserServic
     }
 }
 
-public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentUser, IBusinessAlertService alertas) :
+public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentUser, IBusinessAlertService alertas, IUserCreationKeyValidator operationKeyValidator) :
     IRequestHandler<CrearCompraCommand, Guid>,
     IRequestHandler<ActualizarCompraCommand, CompraDto>,
-    IRequestHandler<RecibirCompraCommand, bool>
+    IRequestHandler<RecibirCompraCommand, bool>,
+    IRequestHandler<RecalcularCostoCompraCommand, CompraDto>
 {
     public async Task<Guid> Handle(CrearCompraCommand r, CancellationToken ct)
     {
@@ -418,6 +420,27 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
         var proveedor = await uow.Proveedores.ObtenerPorIdAsync(compra.ProveedorId, ct);
         await alertas.CompraRecibidaAsync(compra.Id, proveedor?.Nombre ?? compra.ProveedorId.ToString(), compra.Origen, compra.Detalles.Sum(x => x.Cantidad * x.PrecioCompra), ct);
         return true;
+    }
+
+    public async Task<CompraDto> Handle(RecalcularCostoCompraCommand r, CancellationToken ct)
+    {
+        if (!operationKeyValidator.IsValid(r.ClaveOperacion))
+            throw new UnauthorizedAccessException("Clave de operacion invalida.");
+        if (r.PrecioCompraUnitario <= 0)
+            throw new InvalidOperationException("El precio unitario de compra debe ser mayor a cero.");
+
+        var compra = await uow.Compras.ObtenerConDetallesAsync(r.CompraId, ct)
+            ?? throw new KeyNotFoundException("Compra no encontrada.");
+
+        foreach (var detalle in compra.Detalles)
+        {
+            detalle.ActualizarPrecioCompra(r.PrecioCompraUnitario);
+            var producto = await uow.Productos.ObtenerPorIdAsync(detalle.ProductoMaderaId, ct);
+            producto?.ActualizarPrecios(r.PrecioCompraUnitario, producto.PrecioVentaSugerido);
+        }
+
+        await uow.SaveChangesAsync(ct);
+        return compra.ToDto();
     }
 }
 

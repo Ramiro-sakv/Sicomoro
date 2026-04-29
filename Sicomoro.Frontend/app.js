@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.5.1-oficial";
+const APP_VERSION = "v1.6.0-ventas";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -303,6 +303,50 @@ function requestOperationKey(actionName = "borrar") {
   });
 }
 
+function requestInputModal({ title, message, label, type = "text", value = "", placeholder = "", required = false }) {
+  return new Promise(resolve => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal-card" role="dialog" aria-modal="true">
+        <h3>${esc(title)}</h3>
+        ${message ? `<p>${esc(message)}</p>` : ""}
+        <label>${esc(label)}<input name="modalValue" type="${esc(type)}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${required ? "required" : ""}></label>
+        <div class="actions">
+          <button type="button" class="primary" data-confirm-modal>Confirmar</button>
+          <button type="button" data-cancel-modal>Cancelar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+
+    const input = backdrop.querySelector("[name='modalValue']");
+    const close = confirmed => {
+      const result = confirmed ? input.value : null;
+      backdrop.remove();
+      if (!confirmed) toast("Operacion cancelada");
+      resolve(result);
+    };
+
+    backdrop.querySelector("[data-confirm-modal]").onclick = () => {
+      if (required && !input.value.trim()) {
+        toast("Completa el campo requerido.");
+        return;
+      }
+      close(true);
+    };
+    backdrop.querySelector("[data-cancel-modal]").onclick = () => close(false);
+    backdrop.onclick = event => {
+      if (event.target === backdrop) close(false);
+    };
+    input.onkeydown = event => {
+      if (event.key === "Enter") close(true);
+      if (event.key === "Escape") close(false);
+    };
+    setTimeout(() => input.focus(), 0);
+  });
+}
+
 async function deleteWithOperationKey(path, actionName = "borrar") {
   const claveOperacion = await requestOperationKey(actionName);
   if (!claveOperacion) return false;
@@ -542,6 +586,10 @@ function lineInput(row, name) {
   return row.querySelector(`[name="${name}"]`);
 }
 
+function findInventario(productoId) {
+  return state.cache.inventario.find(x => x.productoId === productoId);
+}
+
 function readVentaDetalles(form) {
   const detalles = Array.from(form.querySelectorAll("[data-venta-line]")).map(row => ({
     productoId: lineInput(row, "productoId")?.value,
@@ -575,6 +623,7 @@ function wireLineItems(containerId, buttonId, rowHtml, priceField) {
     });
     container.querySelectorAll("[data-product-select]").forEach(select => select.onchange = () => fillLinePrice(select, priceField));
     container.querySelectorAll("[data-venta-line]").forEach(wireVentaLineCalculator);
+    updateVentaSummary();
   };
 
   button.onclick = () => {
@@ -606,8 +655,9 @@ function fillVentaLineDimensions(row, producto) {
 function wireVentaLineCalculator(row) {
   if (row.dataset.calculatorReady === "1") return;
   row.dataset.calculatorReady = "1";
-  ["piezas", "largoPies", "anchoPulgadas", "espesorPulgadas", "cantidad", "precioUnitario", "descuento"].forEach(name => {
+  ["piezas", "largoPies", "anchoPulgadas", "espesorPulgadas", "cantidad", "precioUnitario", "descuento", "pricingStrategy"].forEach(name => {
     lineInput(row, name)?.addEventListener("input", () => calculateVentaLine(row));
+    lineInput(row, name)?.addEventListener("change", () => calculateVentaLine(row));
   });
   fillVentaLineDimensions(row, findProducto(lineInput(row, "productoId")?.value));
   calculateVentaLine(row);
@@ -629,11 +679,67 @@ function calculateVentaLine(row) {
   const precio = Number(lineInput(row, "precioUnitario")?.value || 0);
   const descuento = Number(lineInput(row, "descuento")?.value || 0);
   const total = Math.max(0, cantidad * precio - descuento);
+  const productoId = lineInput(row, "productoId")?.value;
+  const stockActual = Number(findInventario(productoId)?.stockActual ?? 0);
+  const stockEl = row.querySelector("[data-line-stock]");
+  if (stockEl) {
+    const superaStock = productoId && cantidad > stockActual;
+    stockEl.innerHTML = productoId
+      ? `<span>Stock disponible</span><strong>${money(stockActual)}</strong>${superaStock ? badge("Supera stock", "bad") : badge("OK")}`
+      : `<span>Selecciona producto</span><strong>-</strong>`;
+    stockEl.classList.toggle("stock-warning", Boolean(superaStock));
+  }
   const result = row.querySelector("[data-line-total]");
   if (result) {
     result.textContent = cantidad > 0 || precio > 0
       ? `${money(cantidad)} pies tablares / Bs ${money(total)}`
       : "Complete medidas para calcular";
+  }
+  updateVentaSummary();
+}
+
+function ventaTotalsFromForm(form = document.getElementById("ventaForm")) {
+  if (!form) return { lineas: 0, piezas: 0, cantidad: 0, subtotal: 0, descuento: 0, total: 0, stockIssues: 0 };
+  return Array.from(form.querySelectorAll("[data-venta-line]")).reduce((acc, row) => {
+    const productoId = lineInput(row, "productoId")?.value;
+    const piezas = Number(lineInput(row, "piezas")?.value || 0);
+    const cantidad = Number(lineInput(row, "cantidad")?.value || 0);
+    const precio = Number(lineInput(row, "precioUnitario")?.value || 0);
+    const descuento = Number(lineInput(row, "descuento")?.value || 0);
+    const stockActual = Number(findInventario(productoId)?.stockActual ?? 0);
+    const bruto = cantidad * precio;
+    if (productoId && cantidad > 0) acc.lineas += 1;
+    acc.piezas += piezas;
+    acc.cantidad += cantidad;
+    acc.subtotal += bruto;
+    acc.descuento += descuento;
+    acc.total += Math.max(0, bruto - descuento);
+    if (productoId && cantidad > stockActual) acc.stockIssues += 1;
+    return acc;
+  }, { lineas: 0, piezas: 0, cantidad: 0, subtotal: 0, descuento: 0, total: 0, stockIssues: 0 });
+}
+
+function updateVentaSummary() {
+  const form = document.getElementById("ventaForm");
+  if (!form) return;
+  const totals = ventaTotalsFromForm(form);
+  const pagado = Number(document.getElementById("ventaMontoPagado")?.value || 0);
+  const saldo = Math.max(0, totals.total - pagado);
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  set("ventaTotalPreview", money(totals.total));
+  set("ventaPiesPreview", money(totals.cantidad));
+  set("ventaPiezasPreview", money(totals.piezas));
+  set("ventaDescuentoPreview", money(totals.descuento));
+  set("ventaSaldoPreview", money(saldo));
+  set("ventaLineasPreview", String(totals.lineas));
+  const stockBox = document.getElementById("ventaStockPreview");
+  if (stockBox) {
+    stockBox.innerHTML = totals.stockIssues
+      ? `${badge(`${totals.stockIssues} linea(s) sin stock`, "bad")}`
+      : `${badge("Stock OK")}`;
   }
 }
 
@@ -660,6 +766,7 @@ function ventaLineHtml(detail = {}) {
       <label>Precio unitario<input name="precioUnitario" type="number" step="0.0001" value="${esc(detail.precioUnitario ?? "")}" required></label>
       <label>Descuento<input name="descuento" type="number" step="0.0001" value="${esc(detail.descuento ?? 0)}"></label>
       <label>Estrategia<select name="pricingStrategy"><option value="normal">Normal</option><option value="mayorista">Mayorista</option><option value="cliente-frecuente">Cliente frecuente</option><option value="descuento-manual">Descuento manual</option></select></label>
+      <div class="line-stock" data-line-stock><span>Selecciona producto</span><strong>-</strong></div>
       <div class="line-math" data-line-total>Complete medidas para calcular</div>
       <button type="button" class="danger" data-remove-line>Quitar</button>
     </div>
@@ -1242,8 +1349,22 @@ function renderVentas() {
     x => date(x.fecha)
   ]);
   const page = paginate("ventas", ventas);
+  const ventasHoy = state.cache.ventas.filter(x => date(x.fecha) === today());
+  const totalHoy = ventasHoy.reduce((sum, x) => sum + Number(x.total || 0), 0);
+  const saldoVentas = state.cache.ventas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   renderShell(`
-    <section class="layout">
+    <section class="ventas-hero">
+      <div>
+        <span class="catalog-badge">Operacion diaria</span>
+        <h3>Ventas de madera</h3>
+        <p>Arma la venta por piezas y medidas, revisa stock antes de confirmar y cobra parcial o total en un solo flujo.</p>
+      </div>
+      <div class="venta-hero-metrics">
+        <div><span>Hoy</span><strong>Bs ${money(totalHoy)}</strong></div>
+        <div><span>Pendiente</span><strong>Bs ${money(saldoVentas)}</strong></div>
+      </div>
+    </section>
+    <section class="layout sales-layout">
       <div class="panel">
         <div class="panel-header"><h3>Venta</h3></div>
         <div class="panel-body">
@@ -1260,9 +1381,24 @@ function renderVentas() {
               <p class="hint">Para vender por madera medida: piezas x largo en pies x ancho en pulgadas x espesor en pulgadas / 12. El resultado se guarda como cantidad en pies tablares.</p>
               <div id="ventaLines">${ventaLineHtml()}</div>
             </div>
+            <div class="full venta-summary-card">
+              <div class="venta-summary-grid">
+                <div><span>Total venta</span><strong>Bs <b id="ventaTotalPreview">0,00</b></strong></div>
+                <div><span>Pies tablares</span><strong id="ventaPiesPreview">0,00</strong></div>
+                <div><span>Piezas</span><strong id="ventaPiezasPreview">0,00</strong></div>
+                <div><span>Descuento</span><strong>Bs <b id="ventaDescuentoPreview">0,00</b></strong></div>
+                <div><span>Lineas</span><strong id="ventaLineasPreview">0</strong></div>
+                <div><span>Revision</span><strong id="ventaStockPreview">${badge("Stock OK")}</strong></div>
+              </div>
+              <div class="payment-preview">
+                <label>Monto pagado al confirmar<input id="ventaMontoPagado" type="number" step="0.0001" min="0" value="0"></label>
+                <div><span>Saldo estimado</span><strong>Bs <b id="ventaSaldoPreview">0,00</b></strong></div>
+              </div>
+            </div>
             <label class="full">Observaciones<input name="observaciones"></label>
             <div class="actions full">
-              <button class="primary">Guardar venta</button>
+              <button class="primary" data-save-venta="draft">Guardar borrador</button>
+              <button type="button" class="primary" id="guardarConfirmarVenta">Guardar y confirmar</button>
               <button type="button" id="nuevaVenta">Nueva</button>
             </div>
           </form>
@@ -1291,29 +1427,50 @@ function renderVentas() {
   wireListControls("ventas", renderVentas);
   wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
   const ventaForm = document.getElementById("ventaForm");
+  const montoPagadoInput = document.getElementById("ventaMontoPagado");
+  montoPagadoInput?.addEventListener("input", updateVentaSummary);
+  async function guardarVentaActual() {
+    const data = formData(ventaForm);
+    const id = data.id;
+    const body = {
+      clienteId: data.clienteId,
+      metodoPago: data.metodoPago,
+      fechaVencimiento: toIsoDate(data.fechaVencimiento),
+      observaciones: data.observaciones,
+      detalles: readVentaDetalles(ventaForm)
+    };
+    if (id) {
+      const venta = await api(`/api/ventas/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      return venta.id || id;
+    }
+    const creada = await api("/api/ventas", { method: "POST", body: JSON.stringify(body) });
+    ventaForm.elements.id.value = creada.id;
+    return creada.id;
+  }
   document.getElementById("nuevaVenta").onclick = () => {
     ventaForm.reset();
     ventaForm.elements.id.value = "";
+    if (montoPagadoInput) montoPagadoInput.value = "0";
     document.getElementById("ventaLines").innerHTML = ventaLineHtml();
     wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
+    updateVentaSummary();
   };
   document.getElementById("ventaForm").onsubmit = async event => {
     event.preventDefault();
     await safe(async () => {
-      const data = formData(event.currentTarget);
-      const id = data.id;
-      const body = {
-        clienteId: data.clienteId,
-        metodoPago: data.metodoPago,
-        fechaVencimiento: toIsoDate(data.fechaVencimiento),
-        observaciones: data.observaciones,
-        detalles: readVentaDetalles(event.currentTarget)
-      };
-      if (id) await api(`/api/ventas/${id}`, { method: "PUT", body: JSON.stringify(body) });
-      else await api("/api/ventas", { method: "POST", body: JSON.stringify(body) });
+      await guardarVentaActual();
       await loadCommon();
       render();
     }, "Venta guardada");
+  };
+  document.getElementById("guardarConfirmarVenta").onclick = async () => {
+    await safe(async () => {
+      const ventaId = await guardarVentaActual();
+      const montoPagado = Number(montoPagadoInput?.value || 0);
+      await api(`/api/ventas/${ventaId}/confirmar`, { method: "PUT", body: JSON.stringify({ montoPagado }) });
+      await loadCommon();
+      render();
+    }, "Venta guardada y confirmada");
   };
   document.querySelectorAll("[data-edit-venta]").forEach(btn => btn.onclick = () => {
     const venta = state.cache.ventas.find(x => x.id === btn.dataset.editVenta);
@@ -1325,10 +1482,20 @@ function renderVentas() {
     ventaForm.elements.observaciones.value = venta.observaciones || "";
     document.getElementById("ventaLines").innerHTML = (venta.detalles?.length ? venta.detalles : [{}]).map(ventaLineHtml).join("");
     wireLineItems("ventaLines", "addVentaLine", ventaLineHtml, "precioUnitario");
+    if (montoPagadoInput) montoPagadoInput.value = String(venta.montoPagado || 0);
+    updateVentaSummary();
     toast("Venta cargada para editar");
   });
   document.querySelectorAll("[data-confirmar-venta]").forEach(btn => btn.onclick = async () => {
-    const monto = Number(prompt("Monto pagado", "0") || 0);
+    const montoValue = await requestInputModal({
+      title: "Confirmar venta",
+      message: "Registra cuanto pago el cliente ahora. Si es credito, deja 0.",
+      label: "Monto pagado",
+      type: "number",
+      value: "0"
+    });
+    if (montoValue == null) return;
+    const monto = Number(montoValue || 0);
     await safe(async () => {
       await api(`/api/ventas/${btn.dataset.confirmarVenta}/confirmar`, { method: "PUT", body: JSON.stringify({ montoPagado: monto }) });
       await loadCommon();
@@ -1336,13 +1503,21 @@ function renderVentas() {
     }, "Venta confirmada");
   });
   document.querySelectorAll("[data-anular-venta]").forEach(btn => btn.onclick = async () => {
-    const motivo = prompt("Motivo", "Anulada desde frontend") || "Anulada";
+    const motivo = await requestInputModal({
+      title: "Anular venta",
+      message: "Indica el motivo para auditoria.",
+      label: "Motivo",
+      value: "Anulada desde frontend",
+      required: true
+    });
+    if (motivo == null) return;
     await safe(async () => {
       await api(`/api/ventas/${btn.dataset.anularVenta}/anular`, { method: "PUT", body: JSON.stringify({ motivo }) });
       await loadCommon();
       render();
     }, "Venta anulada");
   });
+  updateVentaSummary();
 }
 
 function renderCobros() {

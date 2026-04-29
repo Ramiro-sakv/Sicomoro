@@ -625,7 +625,7 @@ th {
 
 .line-item {
   display: grid;
-  grid-template-columns: minmax(210px, 1.5fr) repeat(4, minmax(84px, .55fr)) minmax(130px, .8fr) minmax(112px, .7fr) minmax(96px, .6fr) minmax(135px, .8fr) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(4, minmax(78px, .5fr)) minmax(128px, .75fr) minmax(112px, .65fr) minmax(96px, .55fr) minmax(130px, .75fr) minmax(132px, .75fr) minmax(174px, 1fr) auto;
   gap: 8px;
   align-items: end;
   padding: 10px 0;
@@ -656,6 +656,121 @@ th {
   font-weight: 700;
   padding: 8px 10px;
   line-height: 1.25;
+}
+
+.line-stock {
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid #d4dfd8;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 7px 9px;
+  line-height: 1.2;
+}
+
+.line-stock span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.line-stock strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.line-stock.stock-warning {
+  border-color: #efc4c4;
+  background: #fff5f5;
+}
+
+.ventas-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid #cddbd2;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff 0%, #eef7f1 100%);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.ventas-hero h3 {
+  margin: 7px 0 6px;
+  font-size: 24px;
+}
+
+.ventas-hero p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.venta-hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.venta-hero-metrics div,
+.venta-summary-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,.85);
+  padding: 12px;
+}
+
+.venta-hero-metrics span,
+.venta-summary-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.venta-hero-metrics strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.sales-layout {
+  grid-template-columns: minmax(0, 1.25fr) minmax(390px, .75fr);
+}
+
+.venta-summary-card {
+  display: grid;
+  gap: 12px;
+  background: linear-gradient(180deg, #ffffff, #f5faf7);
+}
+
+.venta-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.venta-summary-grid div,
+.payment-preview > div {
+  border: 1px solid #dde7e1;
+  border-radius: 7px;
+  background: #fff;
+  padding: 10px;
+}
+
+.venta-summary-grid strong,
+.payment-preview strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.payment-preview {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, .7fr);
+  gap: 10px;
+  align-items: end;
 }
 
 .report-quick {
@@ -1295,15 +1410,24 @@ html.mobile-device .main {
 }
 
 html.mobile-device .layout,
+html.mobile-device .sales-layout,
 html.mobile-device .grid,
 html.mobile-device .kpi-grid,
 html.mobile-device .report-quick,
 html.mobile-device .detail-grid,
 html.mobile-device .install-grid,
 html.mobile-device .chart-summary,
+html.mobile-device .venta-summary-grid,
+html.mobile-device .payment-preview,
+html.mobile-device .venta-hero-metrics,
 html.mobile-device .line-item,
 html.mobile-device .line-item[data-compra-line] {
   grid-template-columns: 1fr;
+}
+
+html.mobile-device .ventas-hero {
+  align-items: stretch;
+  flex-direction: column;
 }
 
 html.mobile-device .panel {
@@ -1556,6 +1680,16 @@ html.mobile-device .client-access-card {
   .line-item[data-compra-line] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .sales-layout {
+    grid-template-columns: 1fr;
+  }
+  .venta-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .payment-preview,
+  .ventas-hero {
+    grid-template-columns: 1fr;
+  }
   .chart-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1686,6 +1820,9 @@ html.mobile-device .client-access-card {
   .detail-grid,
   .install-grid,
   .chart-summary,
+  .venta-summary-grid,
+  .payment-preview,
+  .venta-hero-metrics,
   .line-item,
   .line-item[data-compra-line] {
     grid-template-columns: 1fr;

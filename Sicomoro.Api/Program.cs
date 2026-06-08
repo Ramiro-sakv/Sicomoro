@@ -73,7 +73,16 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue("Swagger:Enabl
 if (app.Configuration.GetValue("ApplyMigrationsOnStartup", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<SicomoroDbContext>().Database.MigrateAsync();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var databaseTarget = GetDatabaseTarget(app.Configuration);
+    logger.LogInformation(
+        "Applying database migrations. Source: {DatabaseSource}. Host: {DatabaseHost}. Database: {DatabaseName}.",
+        databaseTarget.Source,
+        databaseTarget.Host,
+        databaseTarget.Database);
+    await ApplyMigrationsWithRetryAsync(
+        scope.ServiceProvider.GetRequiredService<SicomoroDbContext>(),
+        logger);
 }
 
 if (app.Environment.IsDevelopment())
@@ -90,5 +99,57 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", app = "Sicomoro" }))
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 app.Run();
+
+static async Task ApplyMigrationsWithRetryAsync(SicomoroDbContext dbContext, ILogger logger)
+{
+    const int maxAttempts = 12;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            await dbContext.Database.MigrateAsync();
+            logger.LogInformation("Database migrations completed.");
+            return;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            logger.LogWarning(
+                ex,
+                "Database migration attempt {Attempt}/{MaxAttempts} failed. Retrying in 10 seconds.",
+                attempt,
+                maxAttempts);
+            await Task.Delay(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    await dbContext.Database.MigrateAsync();
+}
+
+static (string Source, string Host, string Database) GetDatabaseTarget(IConfiguration configuration)
+{
+    var databaseUrl = configuration["DATABASE_URL"];
+    if (!string.IsNullOrWhiteSpace(databaseUrl) && Uri.TryCreate(databaseUrl, UriKind.Absolute, out var uri))
+    {
+        return ("DATABASE_URL", uri.Host, uri.AbsolutePath.TrimStart('/'));
+    }
+
+    var connectionString = configuration.GetConnectionString("DefaultConnection");
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        var values = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .Where(part => part.Length == 2)
+            .ToDictionary(
+                part => part[0].Trim(),
+                part => part[1].Trim(),
+                StringComparer.OrdinalIgnoreCase);
+
+        values.TryGetValue("Host", out var host);
+        values.TryGetValue("Database", out var database);
+        return ("ConnectionStrings:DefaultConnection", host ?? "(not set)", database ?? "(not set)");
+    }
+
+    return ("not configured", "(not set)", "(not set)");
+}
 
 public partial class Program { }

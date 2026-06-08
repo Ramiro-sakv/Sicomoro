@@ -13,5 +13,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 COPY Sicomoro.Frontend ./wwwroot
-EXPOSE 8080
+EXPOSE 10000
 ENTRYPOINT ["dotnet", "Sicomoro.Api.dll"]

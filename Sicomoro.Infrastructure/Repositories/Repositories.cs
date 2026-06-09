@@ -93,6 +93,9 @@ public sealed class CompraRepository(SicomoroDbContext db) : Repository<Compra>(
 
     public Task<Compra?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default) =>
         Db.Compras.Include(x => x.Detalles).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    public Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default) =>
+        Db.CompraDetalles.Where(x => x.CompraId == compraId).ExecuteDeleteAsync(cancellationToken);
 }
 
 public sealed class VentaRepository(SicomoroDbContext db) : Repository<Venta>(db), IVentaRepository
@@ -106,6 +109,9 @@ public sealed class VentaRepository(SicomoroDbContext db) : Repository<Venta>(db
             .ThenInclude(x => x.ProductoMadera)
             .Include(x => x.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    public Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default) =>
+        Db.VentaDetalles.Where(x => x.VentaId == ventaId).ExecuteDeleteAsync(cancellationToken);
 }
 
 public sealed class CobroRepository(SicomoroDbContext db) : Repository<Cobro>(db), ICobroRepository

@@ -42,11 +42,13 @@ public interface IInventarioRepository : IRepository<Inventario>
 public interface ICompraRepository : IRepository<Compra>
 {
     Task<Compra?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
+    Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default);
 }
 
 public interface IVentaRepository : IRepository<Venta>
 {
     Task<Venta?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
+    Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default);
 }
 
 public interface ICobroRepository : IRepository<Cobro>

@@ -389,9 +389,9 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
     public async Task<CompraDto> Handle(ActualizarCompraCommand r, CancellationToken ct)
     {
         if (r.Detalles.Count == 0) throw new InvalidOperationException("La compra debe tener detalle.");
-        var compra = await uow.Compras.ObtenerConDetallesAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
+        var compra = await uow.Compras.ObtenerPorIdAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
         compra.ActualizarPendiente(r.ProveedorId, r.Origen, r.FechaCompra, r.FechaEstimadaLlegada, r.CostoTransporte, r.OtrosCostos, r.Observaciones);
-        compra.LimpiarDetallesPendiente();
+        await uow.Compras.EliminarDetallesAsync(compra.Id, ct);
         foreach (var d in r.Detalles) compra.AgregarDetalle(d.ProductoId, d.Cantidad, d.PrecioCompra);
         await uow.SaveChangesAsync(ct);
         return compra.ToDto();
@@ -469,9 +469,9 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
     public async Task<VentaDto> Handle(ActualizarVentaCommand r, CancellationToken ct)
     {
         if (r.Detalles.Count == 0) throw new InvalidOperationException("La venta debe tener detalle.");
-        var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
+        var venta = await uow.Ventas.ObtenerPorIdAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
         venta.ActualizarPendiente(r.ClienteId, r.MetodoPago, r.FechaVencimiento, r.Observaciones);
-        venta.LimpiarDetallesPendiente();
+        await uow.Ventas.EliminarDetallesAsync(venta.Id, ct);
         foreach (var detalle in r.Detalles)
         {
             var producto = await uow.Productos.ObtenerPorIdAsync(detalle.ProductoId, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");

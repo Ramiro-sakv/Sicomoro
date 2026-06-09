@@ -270,6 +270,7 @@ El sistema usa variables de entorno. En Docker Compose ya vienen valores de desa
 | `DATABASE_URL` | Conexión usada por Render. | `postgres://...` |
 | `Jwt__Issuer` | Emisor del token JWT. | `Sicomoro` |
 | `Jwt__Key` | Clave privada para firmar tokens. | `cambiar-en-produccion` |
+| `UserRegistration__Clave` | Clave privada para crear usuarios y operaciones sensibles. | `cambiar-en-produccion` |
 | `ApplyMigrationsOnStartup` | Aplica migraciones al iniciar. | `true` |
 | `Swagger__Enabled` | Habilita Swagger fuera de desarrollo. | `false` |
 | `WhatsApp__Enabled` | Activa integración WhatsApp Cloud API. | `false` |
@@ -610,11 +611,12 @@ Luego el cliente lo ve en:
 
 El proyecto incluye `render.yaml` para desplegar en Render como Blueprint.
 
-Render crea:
+Render usa:
 
 - Web Service Docker `sicomoro`.
-- Base PostgreSQL `sicomoro-db`.
+- Base PostgreSQL externa configurada en `DATABASE_URL` (Neon recomendado).
 - Migraciones automáticas al iniciar.
+- Clave sensible `UserRegistration__Clave` configurada como variable privada.
 
 Pasos:
 
@@ -623,7 +625,8 @@ Pasos:
 2. En Render: New > Blueprint.
 3. Seleccionar el repositorio.
 4. Confirmar render.yaml.
-5. Deploy Blueprint.
+5. Configurar `DATABASE_URL` y `UserRegistration__Clave` en Environment.
+6. Deploy Blueprint.
 ```
 
 Para producción se recomienda:

@@ -82,7 +82,16 @@ public sealed class UserCreationKeyValidator(IConfiguration configuration) : IUs
 {
     public bool IsValid(string? key)
     {
-        var expected = configuration["UserRegistration:Clave"] ?? "13067264";
+        var expected = configuration["UserRegistration:Clave"];
+        if (string.IsNullOrWhiteSpace(expected))
+        {
+            var environment = configuration["ASPNETCORE_ENVIRONMENT"];
+            if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            expected = "13067264";
+        }
+
         return !string.IsNullOrWhiteSpace(key) && key == expected;
     }
 }

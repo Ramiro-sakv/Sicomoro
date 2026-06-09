@@ -23,5 +23,7 @@ services:
         value: Sicomoro
       - key: Jwt__Key
         generateValue: true
+      - key: UserRegistration__Clave
+        sync: false
       - key: DATABASE_URL
         sync: false

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Sicomoro.Api.DTOs;
 using Sicomoro.Api.Security;
 using Sicomoro.Application.Commands;
+using Sicomoro.Application.Queries;
 
 namespace Sicomoro.Api.Controllers;
 
@@ -23,7 +24,15 @@ public sealed class DocumentosController(IMediator mediator) : ControllerBase
     [HttpGet("venta/{ventaId:guid}/descargar")]
     public async Task<IActionResult> Descargar(Guid ventaId, CancellationToken ct)
     {
-        var documento = await mediator.Send(new GenerarDocumentoVentaCommand(ventaId), ct);
+        var documento = await mediator.Send(new ObtenerDocumentoVentaArchivoQuery(ventaId), ct);
+        if (documento is null)
+        {
+            var generado = await mediator.Send(new GenerarDocumentoVentaCommand(ventaId), ct);
+            documento = await mediator.Send(new ObtenerDocumentoVentaArchivoQuery(generado.VentaId, generado.Tipo), ct);
+        }
+        if (documento is null)
+            return NotFound(ApiResponse<object>.Fail("No se pudo generar el PDF."));
+
         if (!System.IO.File.Exists(documento.RutaArchivo))
             return NotFound(ApiResponse<object>.Fail("No se encontro el archivo PDF generado."));
 

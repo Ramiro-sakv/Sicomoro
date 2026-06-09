@@ -1,9 +1,9 @@
-const CACHE_NAME = "sicomoro-pwa-v1.8.1-moneda-bs";
+const CACHE_NAME = "sicomoro-pwa-v1.9.0-contabilidad";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260609-181",
-  "/app.js?v=20260609-181",
+  "/styles.css?v=20260609-190",
+  "/app.js?v=20260609-190",
   "/manifest.webmanifest",
   "/assets/catalogo-hero.png",
   "/icons/icon-192.png",

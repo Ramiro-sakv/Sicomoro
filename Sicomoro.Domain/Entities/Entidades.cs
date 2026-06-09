@@ -434,11 +434,12 @@ public sealed class Venta : EntidadBase
 
     public void Confirmar(decimal montoPagado)
     {
+        if (Estado != EstadoVenta.Pendiente) throw new InvalidOperationException("La venta ya fue confirmada o no puede confirmarse.");
         if (Estado == EstadoVenta.Anulada) throw new InvalidOperationException("Una venta anulada no puede confirmarse.");
         if (Detalles.Count == 0) throw new InvalidOperationException("No se puede confirmar una venta sin detalle.");
         if (montoPagado < 0 || montoPagado > Total) throw new InvalidOperationException("El pago inicial no puede exceder el total.");
         MontoPagado = montoPagado;
-        Estado = montoPagado == Total ? EstadoVenta.Pagada : montoPagado > 0 ? EstadoVenta.ParcialmentePagada : EstadoVenta.Pendiente;
+        Estado = montoPagado == Total ? EstadoVenta.Pagada : montoPagado > 0 ? EstadoVenta.ParcialmentePagada : EstadoVenta.ConfirmadaPendiente;
         AddDomainEvent(new VentaConfirmadaEvent(Id, ClienteId, Total, DateTime.UtcNow));
         MarcarActualizado();
     }
@@ -446,6 +447,7 @@ public sealed class Venta : EntidadBase
     public void RegistrarPago(decimal monto)
     {
         if (Estado == EstadoVenta.Anulada) throw new InvalidOperationException("Una venta anulada no permite pagos nuevos.");
+        if (Estado == EstadoVenta.Pendiente) throw new InvalidOperationException("La venta debe confirmarse antes de registrar pagos.");
         if (monto <= 0 || monto > SaldoPendiente) throw new InvalidOperationException("No se puede registrar pago mayor al saldo pendiente.");
         MontoPagado += monto;
         Estado = SaldoPendiente == 0 ? EstadoVenta.Pagada : EstadoVenta.ParcialmentePagada;
@@ -506,6 +508,7 @@ public sealed class Cobro : EntidadBase
 
     public Pago RegistrarPago(decimal monto, MetodoPago metodo, Guid usuarioId, string? referencia)
     {
+        if (Estado == EstadoCobro.Cancelado) throw new InvalidOperationException("El cobro esta cancelado.");
         if (Estado == EstadoCobro.Pagado) throw new InvalidOperationException("El cobro ya esta pagado.");
         if (monto <= 0 || monto > SaldoPendiente) throw new InvalidOperationException("No se puede registrar pago mayor al saldo pendiente.");
         var pago = new Pago(Id, monto, metodo, usuarioId, referencia);
@@ -515,6 +518,14 @@ public sealed class Cobro : EntidadBase
         AddDomainEvent(new PagoRegistradoEvent(pago.Id, Id, monto, DateTime.UtcNow));
         MarcarActualizado();
         return pago;
+    }
+
+    public void Cancelar()
+    {
+        if (Estado == EstadoCobro.Cancelado) return;
+        SaldoPendiente = 0;
+        Estado = EstadoCobro.Cancelado;
+        MarcarActualizado();
     }
 }
 

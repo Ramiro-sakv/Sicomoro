@@ -24,6 +24,7 @@ public sealed record ListarNotificacionesQuery(bool SoloNoLeidas = false) : IReq
 public sealed record ListarAuditoriaQuery(int Take = 100) : IRequest<List<AuditoriaDto>>;
 public sealed record ListarUsuariosQuery : IRequest<List<UsuarioDto>>;
 public sealed record ObtenerMiPerfilQuery : IRequest<UsuarioDto>;
+public sealed record ObtenerDocumentoVentaArchivoQuery(Guid VentaId, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<DocumentoArchivoDto?>;
 public sealed record ReporteVentasQuery(DateTime Desde, DateTime Hasta) : IRequest<ReporteVentasDto>;
 public sealed record ReporteInventarioBajoQuery : IRequest<List<InventarioDto>>;
 public sealed record ReporteClientesDeudoresQuery : IRequest<List<ClienteDto>>;
@@ -48,6 +49,7 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
     IRequestHandler<ListarAuditoriaQuery, List<AuditoriaDto>>,
     IRequestHandler<ListarUsuariosQuery, List<UsuarioDto>>,
     IRequestHandler<ObtenerMiPerfilQuery, UsuarioDto>,
+    IRequestHandler<ObtenerDocumentoVentaArchivoQuery, DocumentoArchivoDto?>,
     IRequestHandler<ReporteVentasQuery, ReporteVentasDto>,
     IRequestHandler<ReporteInventarioBajoQuery, List<InventarioDto>>,
     IRequestHandler<ReporteClientesDeudoresQuery, List<ClienteDto>>,
@@ -118,9 +120,15 @@ public sealed class QueryHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         return usuario.ToDto();
     }
 
+    public async Task<DocumentoArchivoDto?> Handle(ObtenerDocumentoVentaArchivoQuery r, CancellationToken ct)
+    {
+        var documento = await uow.Documentos.ObtenerUltimoPorVentaAsync(r.VentaId, r.Tipo, ct);
+        return documento is null ? null : new DocumentoArchivoDto(documento.Numero, documento.RutaArchivo);
+    }
+
     public async Task<ReporteVentasDto> Handle(ReporteVentasQuery r, CancellationToken ct)
     {
-        var ventas = (await uow.Ventas.ListarAsync(ct)).Where(x => x.Fecha >= r.Desde && x.Fecha <= r.Hasta && x.Estado != EstadoVenta.Anulada).ToList();
+        var ventas = (await uow.Ventas.ListarAsync(ct)).Where(x => x.Fecha >= r.Desde && x.Fecha <= r.Hasta && x.Estado != EstadoVenta.Anulada && x.Estado != EstadoVenta.Pendiente).ToList();
         return new ReporteVentasDto(r.Desde, r.Hasta, ventas.Count, ventas.Sum(x => x.Total), ventas.Sum(x => x.MontoPagado), ventas.Sum(x => x.SaldoPendiente));
     }
 

@@ -16,6 +16,7 @@ public sealed record CompraDto(Guid Id, Guid ProveedorId, string Origen, EstadoC
 public sealed record VentaDto(Guid Id, Guid ClienteId, DateTime Fecha, EstadoVenta Estado, MetodoPago MetodoPago, DateTime? FechaVencimiento, string? Observaciones, decimal Total, decimal MontoPagado, decimal SaldoPendiente, IReadOnlyCollection<VentaDetalleDto> Detalles);
 public sealed record CobroDto(Guid Id, Guid VentaId, Guid ClienteId, decimal MontoTotal, decimal SaldoPendiente, EstadoCobro Estado, DateTime? FechaVencimiento);
 public sealed record DocumentoDto(Guid Id, Guid VentaId, TipoDocumentoVenta Tipo, string Numero, string RutaArchivo, DateTime FechaGeneracion);
+public sealed record DocumentoArchivoDto(string Numero, string RutaArchivo);
 public sealed record CajaMovimientoDto(Guid Id, DateTime Fecha, TipoCajaMovimiento Tipo, decimal Monto, string Concepto, Guid UsuarioId, Guid? VentaId, Guid? PagoId, Guid? CompraId);
 public sealed record NotificacionDto(Guid Id, TipoNotificacion Tipo, string Titulo, string Mensaje, Guid? UsuarioId, bool Leida, DateTime CreadoEn);
 public sealed record AuditoriaDto(Guid Id, Guid? UsuarioId, DateTime FechaHora, string Accion, string Entidad, Guid? EntidadId, string? DatosAntes, string? DatosDespues);

@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.8.1-moneda-bs";
+const APP_VERSION = "v1.9.0-contabilidad";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -107,10 +107,11 @@ const tiposMovimientoInventario = {
 };
 
 const ventaEstados = {
-  1: "Pendiente",
+  1: "Borrador",
   2: "Pagada",
   3: "Parcial",
-  4: "Anulada"
+  4: "Anulada",
+  5: "Confirmada pendiente"
 };
 
 function isAdmin() {
@@ -1038,7 +1039,7 @@ async function render() {
 function renderDashboard() {
   const deuda = state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   const bajo = state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo));
-  const ventas = state.cache.ventas.filter(x => x.estado !== 4);
+  const ventas = state.cache.ventas.filter(x => x.estado !== 4 && x.estado !== 1);
   const buckets = buildSalesBuckets(state.dashboardRange, ventas);
   const ventasPendientes = state.cache.ventas.filter(x => x.estado === 1).length;
   const comprasTransito = state.cache.compras.filter(x => x.estado === 2).length;
@@ -1046,11 +1047,11 @@ function renderDashboard() {
   const vendido = ventas.reduce((sum, x) => sum + Number(x.total || 0), 0);
   renderShell(`
     <section class="kpi-grid">
-      <div class="kpi"><span>Ventas registradas</span><strong>${ventas.length}</strong></div>
+      <div class="kpi"><span>Ventas confirmadas</span><strong>${ventas.length}</strong></div>
       <div class="kpi"><span>Total vendido</span><strong>${currency(vendido)}</strong></div>
       <div class="kpi"><span>Deuda pendiente</span><strong>${currency(deuda)}</strong></div>
       <div class="kpi"><span>Bajo stock</span><strong>${bajo.length}</strong></div>
-      <div class="kpi"><span>Ventas sin confirmar</span><strong>${ventasPendientes}</strong></div>
+      <div class="kpi"><span>Borradores sin confirmar</span><strong>${ventasPendientes}</strong></div>
       <div class="kpi"><span>Compras en transito</span><strong>${comprasTransito}</strong></div>
       <div class="kpi"><span>Deudas vencidas</span><strong>${deudasVencidas}</strong></div>
       <div class="kpi"><span>Productos activos</span><strong>${productosActivos().length}</strong></div>
@@ -1245,7 +1246,7 @@ function renderClientes() {
             </div>
             ${table([
               { label: "Fecha", render: x => date(x.fecha) },
-              { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
+              { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : [3, 5].includes(x.estado) ? "warn" : "") },
               { label: "Total", render: x => currency(x.total) },
               { label: "Pagado", render: x => currency(x.montoPagado) },
               { label: "Saldo", render: x => currency(x.saldoPendiente) }
@@ -1766,9 +1767,9 @@ function renderVentas() {
     x => date(x.fecha)
   ]);
   const page = paginate("ventas", ventas);
-  const ventasHoy = state.cache.ventas.filter(x => date(x.fecha) === today());
+  const ventasHoy = state.cache.ventas.filter(x => date(x.fecha) === today() && x.estado !== 1 && x.estado !== 4);
   const totalHoy = ventasHoy.reduce((sum, x) => sum + Number(x.total || 0), 0);
-  const saldoVentas = state.cache.ventas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
+  const saldoVentas = state.cache.ventas.filter(x => x.estado !== 1 && x.estado !== 4).reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0);
   renderShell(`
     <section class="ventas-hero">
       <div>
@@ -1826,7 +1827,7 @@ function renderVentas() {
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Fecha", render: x => date(x.fecha) },
-          { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
+          { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : [3, 5].includes(x.estado) ? "warn" : "") },
           { label: "Total", render: x => currency(x.total) },
           { label: "Saldo", render: x => currency(x.saldoPendiente) }
         ], page.rows, row => `
@@ -2104,7 +2105,7 @@ function renderDocumentos() {
     const documento = await safe(() => api(`/api/documentos/venta/${data.ventaId}/generar`, { method: "POST" }), "Documento generado");
     document.getElementById("documentoResult").innerHTML = `
       <strong>${esc(documento.numero)}</strong><br>
-      <span>${esc(documento.rutaArchivo)}</span>
+      <span>Archivo listo para descargar</span>
       <div class="actions"><button type="button" data-descargar-pdf="${data.ventaId}">Descargar PDF</button></div>
     `;
     wirePdfDownloads();
@@ -2126,8 +2127,8 @@ function renderReportes() {
         <div class="panel-header"><h3>Control de reportes</h3></div>
         <div class="panel-body">
           <div class="report-quick">
-            ${reportMetric("Ventas", state.cache.ventas.filter(x => x.estado !== 4).length, "Operaciones no anuladas")}
-            ${reportMetric("Vendido", currency(state.cache.ventas.filter(x => x.estado !== 4).reduce((sum, x) => sum + Number(x.total || 0), 0)), "Total historico cargado")}
+            ${reportMetric("Ventas", state.cache.ventas.filter(x => x.estado !== 4 && x.estado !== 1).length, "Operaciones confirmadas")}
+            ${reportMetric("Vendido", currency(state.cache.ventas.filter(x => x.estado !== 4 && x.estado !== 1).reduce((sum, x) => sum + Number(x.total || 0), 0)), "Total historico confirmado")}
             ${reportMetric("Deuda", currency(state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0)), "Cuentas por cobrar")}
             ${reportMetric("Bajo stock", state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo)).length, "Productos a revisar")}
           </div>

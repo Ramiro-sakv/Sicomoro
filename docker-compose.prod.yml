@@ -28,6 +28,7 @@ services:
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Key: ${JWT_KEY}
+      UserRegistration__Clave: ${UserRegistration__Clave}
       Cors__AllowedOrigins__0: https://${DOMAIN}
       Swagger__Enabled: ${SWAGGER_ENABLED:-false}
       ApplyMigrationsOnStartup: "true"
@@ -80,4 +81,3 @@ volumes:
   sicomoro_backups:
   caddy_data:
   caddy_config:
-

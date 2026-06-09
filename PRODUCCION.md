@@ -93,10 +93,10 @@ Tambien esta preparado para Render con `render.yaml`.
 Render no levanta el `docker-compose.yml` local. En su lugar usa el Blueprint:
 
 - `sicomoro`: Web Service Docker con API + frontend en la misma URL.
-- `sicomoro-db`: PostgreSQL administrado por Render.
-- `DATABASE_URL`: conectado automaticamente desde la base de Render.
+- `DATABASE_URL`: configurado manualmente con la cadena de conexion externa de Neon.
 - `ApplyMigrationsOnStartup=true`: aplica migraciones al arrancar.
 - `Swagger__Enabled=false`: Swagger apagado en produccion.
+- `UserRegistration__Clave`: clave privada para operaciones sensibles como borrar, resetear o reiniciar datos.
 
 Pasos:
 
@@ -106,6 +106,7 @@ Pasos:
 3. New > Blueprint.
 4. Elegir el repo.
 5. Confirmar Deploy Blueprint.
+6. En Environment, configura `DATABASE_URL` con Neon y `UserRegistration__Clave` con una clave privada que solo conozca el administrador.
 ```
 
 Despues del deploy, entra a la URL `.onrender.com` que muestre Render.

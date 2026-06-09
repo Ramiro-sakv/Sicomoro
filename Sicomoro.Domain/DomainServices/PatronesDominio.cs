@@ -64,6 +64,7 @@ public sealed class VentaActivaPolicy(EstadoVenta estado) : IEstadoVentaPolicy
     public EstadoVenta Estado { get; } = estado;
     public void ValidarPermitePago()
     {
+        if (Estado == EstadoVenta.Pendiente) throw new InvalidOperationException("La venta debe confirmarse antes de recibir pagos.");
         if (Estado == EstadoVenta.Pagada) throw new InvalidOperationException("Una venta pagada no requiere pagos nuevos.");
     }
     public void ValidarPermiteAnulacion() { }
@@ -73,4 +74,3 @@ public sealed class EstadoVentaFactory
 {
     public IEstadoVentaPolicy Crear(EstadoVenta estado) => estado == EstadoVenta.Anulada ? new VentaAnuladaPolicy() : new VentaActivaPolicy(estado);
 }
-

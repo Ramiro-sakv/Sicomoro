@@ -45,6 +45,7 @@ public interface ICompraRepository : IRepository<Compra>
     Task<Compra?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
     Task<EstadoCompra?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default);
     Task<int> ActualizarPendienteAsync(Guid id, Guid proveedorId, string origen, DateTime fechaCompra, DateTime? fechaEstimadaLlegada, decimal costoTransporte, decimal otrosCostos, string? observaciones, CancellationToken cancellationToken = default);
+    Task<int> MarcarRecibidaAsync(Guid id, CancellationToken cancellationToken = default);
     Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default);
 }
 
@@ -53,6 +54,8 @@ public interface IVentaRepository : IRepository<Venta>
     Task<Venta?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
     Task<EstadoVenta?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default);
     Task<int> ActualizarPendienteAsync(Guid id, Guid clienteId, MetodoPago metodoPago, DateTime? fechaVencimiento, string? observaciones, decimal total, CancellationToken cancellationToken = default);
+    Task<int> ConfirmarPendienteAsync(Guid id, decimal montoPagado, EstadoVenta estado, CancellationToken cancellationToken = default);
+    Task<int> AnularSiActivaAsync(Guid id, CancellationToken cancellationToken = default);
     Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default);
 }
 
@@ -61,6 +64,11 @@ public interface ICobroRepository : IRepository<Cobro>
     Task<Cobro?> ObtenerPorVentaAsync(Guid ventaId, CancellationToken cancellationToken = default);
     Task<List<Cobro>> ObtenerDeudasAsync(CancellationToken cancellationToken = default);
     Task<List<Cobro>> ObtenerPorClienteAsync(Guid clienteId, CancellationToken cancellationToken = default);
+}
+
+public interface IDocumentoRepository : IRepository<DocumentoVenta>
+{
+    Task<DocumentoVenta?> ObtenerUltimoPorVentaAsync(Guid ventaId, TipoDocumentoVenta tipo, CancellationToken cancellationToken = default);
 }
 
 public interface ICajaRepository : IRepository<CajaMovimiento>
@@ -103,6 +111,7 @@ public interface IUnitOfWork
     ICompraRepository Compras { get; }
     IVentaRepository Ventas { get; }
     ICobroRepository Cobros { get; }
+    IDocumentoRepository Documentos { get; }
     ICajaRepository Caja { get; }
     IUsuarioRepository Usuarios { get; }
     INotificacionRepository Notificaciones { get; }

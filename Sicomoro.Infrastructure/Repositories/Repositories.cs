@@ -111,6 +111,14 @@ public sealed class CompraRepository(SicomoroDbContext db) : Repository<Compra>(
                 .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
                 cancellationToken);
 
+    public Task<int> MarcarRecibidaAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Db.Compras
+            .Where(x => x.Id == id && x.Estado != EstadoCompra.Recibida && x.Estado != EstadoCompra.Cancelada)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Estado, EstadoCompra.Recibida)
+                .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
+                cancellationToken);
+
     public Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default) =>
         Db.CompraDetalles.Where(x => x.CompraId == compraId).ExecuteDeleteAsync(cancellationToken);
 }
@@ -142,6 +150,23 @@ public sealed class VentaRepository(SicomoroDbContext db) : Repository<Venta>(db
                 .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
                 cancellationToken);
 
+    public Task<int> ConfirmarPendienteAsync(Guid id, decimal montoPagado, EstadoVenta estado, CancellationToken cancellationToken = default) =>
+        Db.Ventas
+            .Where(x => x.Id == id && x.Estado == EstadoVenta.Pendiente)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.MontoPagado, montoPagado)
+                .SetProperty(x => x.Estado, estado)
+                .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
+                cancellationToken);
+
+    public Task<int> AnularSiActivaAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Db.Ventas
+            .Where(x => x.Id == id && x.Estado != EstadoVenta.Anulada)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Estado, EstadoVenta.Anulada)
+                .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
+                cancellationToken);
+
     public Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default) =>
         Db.VentaDetalles.Where(x => x.VentaId == ventaId).ExecuteDeleteAsync(cancellationToken);
 }
@@ -152,10 +177,20 @@ public sealed class CobroRepository(SicomoroDbContext db) : Repository<Cobro>(db
         Db.Cobros.Include(x => x.Pagos).FirstOrDefaultAsync(x => x.VentaId == ventaId, cancellationToken);
 
     public Task<List<Cobro>> ObtenerDeudasAsync(CancellationToken cancellationToken = default) =>
-        Db.Cobros.Include(x => x.Pagos).Where(x => x.Estado != EstadoCobro.Pagado).AsNoTracking().ToListAsync(cancellationToken);
+        Db.Cobros.Include(x => x.Pagos).Where(x => x.Estado != EstadoCobro.Pagado && x.Estado != EstadoCobro.Cancelado).AsNoTracking().ToListAsync(cancellationToken);
 
     public Task<List<Cobro>> ObtenerPorClienteAsync(Guid clienteId, CancellationToken cancellationToken = default) =>
-        Db.Cobros.Include(x => x.Pagos).Where(x => x.ClienteId == clienteId).AsNoTracking().ToListAsync(cancellationToken);
+        Db.Cobros.Include(x => x.Pagos).Where(x => x.ClienteId == clienteId && x.Estado != EstadoCobro.Cancelado).AsNoTracking().ToListAsync(cancellationToken);
+}
+
+public sealed class DocumentoRepository(SicomoroDbContext db) : Repository<DocumentoVenta>(db), IDocumentoRepository
+{
+    public Task<DocumentoVenta?> ObtenerUltimoPorVentaAsync(Guid ventaId, TipoDocumentoVenta tipo, CancellationToken cancellationToken = default) =>
+        Db.DocumentosVenta
+            .AsNoTracking()
+            .Where(x => x.VentaId == ventaId && x.Tipo == tipo)
+            .OrderByDescending(x => x.FechaGeneracion)
+            .FirstOrDefaultAsync(cancellationToken);
 }
 
 public sealed class UsuarioRepository(SicomoroDbContext db) : Repository<Usuario>(db), IUsuarioRepository
@@ -211,6 +246,7 @@ public sealed class UnitOfWork(SicomoroDbContext db) : IUnitOfWork
     public ICompraRepository Compras { get; } = new CompraRepository(db);
     public IVentaRepository Ventas { get; } = new VentaRepository(db);
     public ICobroRepository Cobros { get; } = new CobroRepository(db);
+    public IDocumentoRepository Documentos { get; } = new DocumentoRepository(db);
     public ICajaRepository Caja { get; } = new CajaRepository(db);
     public IUsuarioRepository Usuarios { get; } = new UsuarioRepository(db);
     public INotificacionRepository Notificaciones { get; } = new NotificacionRepository(db);

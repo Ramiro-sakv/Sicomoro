@@ -42,6 +42,41 @@ public sealed class ReglasDeNegocioTests
     }
 
     [Fact]
+    public void Venta_ConfirmadaACredito_DejaDeSerBorrador()
+    {
+        var venta = new Venta(Guid.NewGuid(), Guid.NewGuid(), MetodoPago.Credito, DateTime.UtcNow.AddDays(15), null);
+        venta.AgregarDetalle(Guid.NewGuid(), 2, 100, 0);
+
+        venta.Confirmar(0);
+
+        venta.Estado.Should().Be(EstadoVenta.ConfirmadaPendiente);
+        venta.SaldoPendiente.Should().Be(200);
+    }
+
+    [Fact]
+    public void Venta_NoPermiteConfirmarseDosVeces()
+    {
+        var venta = new Venta(Guid.NewGuid(), Guid.NewGuid(), MetodoPago.Credito, DateTime.UtcNow.AddDays(15), null);
+        venta.AgregarDetalle(Guid.NewGuid(), 2, 100, 0);
+        venta.Confirmar(0);
+
+        var act = () => venta.Confirmar(0);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*ya fue confirmada*");
+    }
+
+    [Fact]
+    public void Venta_BorradorNoPermitePagos()
+    {
+        var venta = new Venta(Guid.NewGuid(), Guid.NewGuid(), MetodoPago.Credito, DateTime.UtcNow.AddDays(15), null);
+        venta.AgregarDetalle(Guid.NewGuid(), 2, 100, 0);
+
+        var act = () => venta.RegistrarPago(20);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*confirmarse*");
+    }
+
+    [Fact]
     public void VentaAnulada_NoPermiteRegistrarPagos()
     {
         var venta = new Venta(Guid.NewGuid(), Guid.NewGuid(), MetodoPago.Credito, DateTime.UtcNow.AddDays(15), null);
@@ -63,5 +98,17 @@ public sealed class ReglasDeNegocioTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*saldo pendiente*");
     }
-}
 
+    [Fact]
+    public void Cobro_Cancelado_NoPermitePagos()
+    {
+        var cobro = new Cobro(Guid.NewGuid(), Guid.NewGuid(), 100, DateTime.UtcNow.AddDays(10));
+        cobro.Cancelar();
+
+        var act = () => cobro.RegistrarPago(10, MetodoPago.Efectivo, Guid.NewGuid(), null);
+
+        cobro.Estado.Should().Be(EstadoCobro.Cancelado);
+        cobro.SaldoPendiente.Should().Be(0);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*cancelado*");
+    }
+}

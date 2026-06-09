@@ -412,6 +412,9 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
         var usuarioId = currentUser.UserId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
         await using var tx = await uow.BeginTransactionAsync(ct);
         var compra = await uow.Compras.ObtenerConDetallesAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
+        if (compra.Detalles.Count == 0) throw new InvalidOperationException("No se puede recibir una compra sin detalle.");
+        var filasActualizadas = await uow.Compras.MarcarRecibidaAsync(compra.Id, ct);
+        if (filasActualizadas == 0) throw new InvalidOperationException("La compra ya fue recibida o no puede recibirse.");
         compra.Recibir();
         foreach (var detalle in compra.Detalles)
         {
@@ -511,7 +514,17 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         var usuarioId = currentUser.UserId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
         await using var tx = await uow.BeginTransactionAsync(ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
+        if (venta.Estado != EstadoVenta.Pendiente) throw new InvalidOperationException("La venta ya fue confirmada o no puede confirmarse.");
+        if (await uow.Cobros.ObtenerPorVentaAsync(venta.Id, ct) is not null)
+            throw new InvalidOperationException("La venta ya tiene un cobro asociado y no debe confirmarse otra vez.");
         await validationChain.ValidarAsync(venta, currentUser.Rol, ct);
+        var nuevoEstado = r.MontoPagado == venta.Total
+            ? EstadoVenta.Pagada
+            : r.MontoPagado > 0
+                ? EstadoVenta.ParcialmentePagada
+                : EstadoVenta.ConfirmadaPendiente;
+        var filasActualizadas = await uow.Ventas.ConfirmarPendienteAsync(venta.Id, r.MontoPagado, nuevoEstado, ct);
+        if (filasActualizadas == 0) throw new InvalidOperationException("La venta ya fue confirmada desde otra pantalla. Actualiza e intenta de nuevo.");
         venta.Confirmar(r.MontoPagado);
         foreach (var detalle in venta.Detalles)
         {
@@ -537,6 +550,9 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
         estadoFactory.Crear(venta.Estado).ValidarPermiteAnulacion();
         var debeRevertir = venta.Estado != EstadoVenta.Pendiente;
+        var montoARevertir = venta.MontoPagado;
+        var filasActualizadas = await uow.Ventas.AnularSiActivaAsync(venta.Id, ct);
+        if (filasActualizadas == 0) throw new InvalidOperationException("La venta ya esta anulada.");
         venta.Anular(r.Motivo);
         if (debeRevertir)
         {
@@ -546,6 +562,11 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
                 inventario.Incrementar(detalle.Cantidad);
                 await uow.Inventario.AgregarMovimientoAsync(new MovimientoInventario(detalle.ProductoMaderaId, usuarioId, TipoMovimientoInventario.ReversionVenta, detalle.Cantidad, detalle.PrecioUnitario, "Venta anulada", ventaId: venta.Id), ct);
             }
+            if (montoARevertir > 0)
+                await uow.AgregarAsync(new CajaMovimiento(TipoCajaMovimiento.Egreso, montoARevertir, "Reversion de cobros por venta anulada", usuarioId, ventaId: venta.Id), ct);
+
+            var cobro = await uow.Cobros.ObtenerPorVentaAsync(venta.Id, ct);
+            cobro?.Cancelar();
         }
         await uow.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -656,7 +677,7 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
         var usuario = await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
         var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
-        await uow.AgregarAsync(documento, ct);
+        await uow.Documentos.AgregarAsync(documento, ct);
         await uow.SaveChangesAsync(ct);
         return documento.ToDto();
     }
@@ -667,6 +688,8 @@ public sealed class DocumentoHandlers(IUnitOfWork uow, ICurrentUserService curre
         var usuario = usuarioId == Guid.Empty ? null : await uow.Usuarios.ObtenerPorIdAsync(usuarioId, ct);
         var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
         var documento = await factory.Crear(r.Tipo).GenerarDocumentoVentaAsync(venta, usuarioId, usuario?.Nombre ?? "Usuario Sicomoro", ct);
+        await uow.Documentos.AgregarAsync(documento, ct);
+        await uow.SaveChangesAsync(ct);
         await factory.Crear(r.Tipo).EnviarDocumentoAsync(documento, r.Destino, ct);
         return true;
     }
@@ -704,7 +727,7 @@ public static class MappingExtensions
         x.SaldoPendiente,
         x.Detalles.Select(d => new VentaDetalleDto(d.ProductoMaderaId, d.Cantidad, d.PrecioUnitario, d.Descuento)).ToList());
     public static CobroDto ToDto(this Cobro x) => new(x.Id, x.VentaId, x.ClienteId, x.MontoTotal, x.SaldoPendiente, x.Estado, x.FechaVencimiento);
-    public static DocumentoDto ToDto(this DocumentoVenta x) => new(x.Id, x.VentaId, x.Tipo, x.Numero, x.RutaArchivo, x.FechaGeneracion);
+    public static DocumentoDto ToDto(this DocumentoVenta x) => new(x.Id, x.VentaId, x.Tipo, x.Numero, Path.GetFileName(x.RutaArchivo), x.FechaGeneracion);
     public static CajaMovimientoDto ToDto(this CajaMovimiento x) => new(x.Id, x.Fecha, x.Tipo, x.Monto, x.Concepto, x.UsuarioId, x.VentaId, x.PagoId, x.CompraId);
     public static NotificacionDto ToDto(this Notificacion x) => new(x.Id, x.Tipo, x.Titulo, x.Mensaje, x.UsuarioId, x.Leida, x.CreadoEn);
     public static AuditoriaDto ToDto(this Auditoria x) => new(x.Id, x.UsuarioId, x.FechaHora, x.Accion, x.Entidad, x.EntidadId, x.DatosAntes, x.DatosDespues);

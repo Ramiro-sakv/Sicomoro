@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.8.0-inventario";
+const APP_VERSION = "v1.8.1-moneda-bs";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -171,6 +171,10 @@ function rolLabel(value) {
 
 function money(value) {
   return Number(value || 0).toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function currency(value) {
+  return `Bs ${money(value)}`;
 }
 
 function numberText(value) {
@@ -475,19 +479,19 @@ function renderSalesChart(buckets) {
 
   return `
     <div class="chart-summary">
-      <div><span>Total del periodo</span><strong>${money(total)}</strong></div>
+      <div><span>Total del periodo</span><strong>${currency(total)}</strong></div>
       <div><span>Ventas</span><strong>${count}</strong></div>
-      <div><span>Mejor periodo</span><strong>${esc(best.label)} / ${money(best.total)}</strong></div>
-      <div><span>Promedio activo</span><strong>${money(promedio)}</strong></div>
+      <div><span>Mejor periodo</span><strong>${esc(best.label)} / ${currency(best.total)}</strong></div>
+      <div><span>Promedio activo</span><strong>${currency(promedio)}</strong></div>
     </div>
     <div class="sales-chart">
       ${buckets.map(bucket => `
-        <div class="chart-column" title="${esc(bucket.label)} - ${money(bucket.total)}">
+        <div class="chart-column" title="${esc(bucket.label)} - ${currency(bucket.total)}">
           <div class="chart-track">
             <div class="chart-bar" style="height:${Math.max(4, Math.round(bucket.total / max * 100))}%"></div>
           </div>
           <span>${esc(bucket.label)}</span>
-          <strong>${money(bucket.total)}</strong>
+          <strong>${currency(bucket.total)}</strong>
         </div>
       `).join("")}
     </div>
@@ -775,7 +779,7 @@ function calculateVentaLine(row) {
   const result = row.querySelector("[data-line-total]");
   if (result) {
     result.textContent = cantidad > 0 || precio > 0
-      ? `${money(cantidad)} pies tablares / Bs ${money(total)}`
+      ? `${money(cantidad)} pies tablares / ${currency(total)}`
       : "Complete medidas para calcular";
   }
   updateVentaSummary();
@@ -1043,8 +1047,8 @@ function renderDashboard() {
   renderShell(`
     <section class="kpi-grid">
       <div class="kpi"><span>Ventas registradas</span><strong>${ventas.length}</strong></div>
-      <div class="kpi"><span>Total vendido</span><strong>${money(vendido)}</strong></div>
-      <div class="kpi"><span>Deuda pendiente</span><strong>${money(deuda)}</strong></div>
+      <div class="kpi"><span>Total vendido</span><strong>${currency(vendido)}</strong></div>
+      <div class="kpi"><span>Deuda pendiente</span><strong>${currency(deuda)}</strong></div>
       <div class="kpi"><span>Bajo stock</span><strong>${bajo.length}</strong></div>
       <div class="kpi"><span>Ventas sin confirmar</span><strong>${ventasPendientes}</strong></div>
       <div class="kpi"><span>Compras en transito</span><strong>${comprasTransito}</strong></div>
@@ -1078,7 +1082,7 @@ function renderDashboard() {
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Venta", key: "ventaId" },
-          { label: "Saldo", render: x => money(x.saldoPendiente) },
+          { label: "Saldo", render: x => currency(x.saldoPendiente) },
           { label: "Estado", render: x => badge(x.estado === 4 ? "Vencido" : "Pendiente", x.estado === 4 ? "bad" : "warn") }
         ], state.cache.deudas)}
       </div>
@@ -1184,7 +1188,7 @@ function movimientosMiniTable(movimientos, limit = 6) {
     { label: "Fecha", render: x => date(x.fecha) },
     { label: "Tipo", render: x => esc(tiposMovimientoInventario[x.tipo] || x.tipo) },
     { label: "Cantidad", render: x => money(x.cantidad) },
-    { label: "Costo", render: x => money(x.costoUnitario) },
+    { label: "Costo", render: x => currency(x.costoUnitario) },
     { label: "Motivo", render: x => esc(x.motivo || "-") }
   ], rows);
 }
@@ -1220,7 +1224,7 @@ function renderClientes() {
           { label: "CI/NIT", key: "ciNit" },
           { label: "Telefono", key: "telefono" },
           { label: "Ciudad", key: "ciudad" },
-          { label: "Deuda", render: x => money(x.deudaTotal) }
+          { label: "Deuda", render: x => currency(x.deudaTotal) }
         ], page.rows, row => `
           <div class="split-actions">
             <button data-historial-cliente="${row.id}">Historial</button>
@@ -1235,16 +1239,16 @@ function renderClientes() {
           ${selected ? `
             <div class="detail-grid">
               <div><span>Cliente</span><strong>${esc(selected.nombreRazonSocial)}</strong></div>
-              <div><span>Total comprado</span><strong>${money(totalCompras)}</strong></div>
-              <div><span>Saldo pendiente</span><strong>${money(saldo)}</strong></div>
+              <div><span>Total comprado</span><strong>${currency(totalCompras)}</strong></div>
+              <div><span>Saldo pendiente</span><strong>${currency(saldo)}</strong></div>
               <div><span>Ventas</span><strong>${historialVentas.length}</strong></div>
             </div>
             ${table([
               { label: "Fecha", render: x => date(x.fecha) },
               { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
-              { label: "Total", render: x => money(x.total) },
-              { label: "Pagado", render: x => money(x.montoPagado) },
-              { label: "Saldo", render: x => money(x.saldoPendiente) }
+              { label: "Total", render: x => currency(x.total) },
+              { label: "Pagado", render: x => currency(x.montoPagado) },
+              { label: "Saldo", render: x => currency(x.saldoPendiente) }
             ], historialVentas)}
           ` : `<div class="empty">Selecciona un cliente para ver sus compras, deuda y pagos pendientes.</div>`}
         </div>
@@ -1311,14 +1315,14 @@ function renderProveedores() {
               <div><span>Proveedor</span><strong>${esc(selected.nombre)}</strong></div>
               <div><span>Origen</span><strong>${esc(selected.lugarOrigen)}</strong></div>
               <div><span>Compras</span><strong>${historialCompras.length}</strong></div>
-              <div><span>Total comprado</span><strong>${money(totalCompras)}</strong></div>
+              <div><span>Total comprado</span><strong>${currency(totalCompras)}</strong></div>
             </div>
             ${table([
               { label: "Fecha", render: x => date(x.fechaCompra) },
               { label: "Origen", key: "origen" },
               { label: "Estado", render: x => badge(["", "Pendiente", "En transito", "Recibida", "Cancelada"][x.estado] || x.estado, x.estado === 3 ? "" : "warn") },
-              { label: "Productos", render: x => money(x.totalProductos) },
-              { label: "Costos", render: x => money(Number(x.costoTransporte || 0) + Number(x.otrosCostos || 0)) }
+              { label: "Productos", render: x => currency(x.totalProductos) },
+              { label: "Costos", render: x => currency(Number(x.costoTransporte || 0) + Number(x.otrosCostos || 0)) }
             ], historialCompras)}
           ` : `<div class="empty">Selecciona un proveedor para ver las compras registradas.</div>`}
         </div>
@@ -1357,7 +1361,7 @@ function renderProductos() {
     <section class="kpi-grid compact">
       <div class="kpi"><span>Productos activos</span><strong>${resumen.productos}</strong></div>
       <div class="kpi"><span>Stock total PT</span><strong>${money(resumen.stock)}</strong></div>
-      <div class="kpi"><span>Valor a costo</span><strong>Bs ${money(resumen.valorCosto)}</strong></div>
+      <div class="kpi"><span>Valor a costo</span><strong>${currency(resumen.valorCosto)}</strong></div>
       <div class="kpi"><span>Bajo stock</span><strong>${resumen.bajoStock}</strong></div>
     </section>
     <section class="layout product-inventory-layout">
@@ -1398,9 +1402,9 @@ function renderProductos() {
                 <div><span>Stock actual</span><strong>${money(selected.stockActual)} PT</strong>${stockBar(selected)}</div>
                 <div><span>Stock minimo</span><strong>${money(selected.stockMinimo)} PT</strong></div>
                 <div><span>Ubicacion</span><strong>${esc(selected.ubicacionInterna || "-")}</strong></div>
-                <div><span>Margen por PT</span><strong>Bs ${money(selected.margenUnitario)}</strong><small>${money(selected.margenPorcentaje)}%</small></div>
-                <div><span>Valor a costo</span><strong>Bs ${money(selected.valorCosto)}</strong></div>
-                <div><span>Valor venta</span><strong>Bs ${money(selected.valorVenta)}</strong></div>
+                <div><span>Margen por PT</span><strong>${currency(selected.margenUnitario)}</strong><small>${money(selected.margenPorcentaje)}%</small></div>
+                <div><span>Valor a costo</span><strong>${currency(selected.valorCosto)}</strong></div>
+                <div><span>Valor venta</span><strong>${currency(selected.valorVenta)}</strong></div>
               </div>
             ` : `<div class="empty">Crea o selecciona un producto para ver su ficha operativa.</div>`}
           </div>
@@ -1419,8 +1423,8 @@ function renderProductos() {
           { label: "Producto", render: x => `<strong>${esc(x.nombreComercial)}</strong><br><small>${esc(x.tipoMadera)} · ${esc(x.calidad || "-")}</small>` },
           { label: "Medida", render: x => `${money(x.ancho)}" x ${money(x.espesor)}" x ${money(x.largo)}'` },
           { label: "Stock", render: x => `<strong>${money(x.stockActual)} PT</strong><br>${stockBar(x)}<small>Min ${money(x.stockMinimo)} · ${esc(x.ubicacionInterna || "Sin ubicacion")}</small>` },
-          { label: "Precios", render: x => `C ${money(x.precioCompra)} / V ${money(x.precioVentaSugerido)}<br><small>Margen Bs ${money(x.margenUnitario)}</small>` },
-          { label: "Valor", render: x => `Costo Bs ${money(x.valorCosto)}<br><small>Venta Bs ${money(x.valorVenta)}</small>` },
+          { label: "Precios", render: x => `C ${currency(x.precioCompra)} / V ${currency(x.precioVentaSugerido)}<br><small>Margen ${currency(x.margenUnitario)}</small>` },
+          { label: "Valor", render: x => `Costo ${currency(x.valorCosto)}<br><small>Venta ${currency(x.valorVenta)}</small>` },
           { label: "Estado", render: x => estadoInventarioBadge(x) }
         ], page.rows, row => `
           <div class="split-actions">
@@ -1531,9 +1535,9 @@ function renderInventario() {
   const filterButton = (id, label) => `<button type="button" data-inventory-filter="${id}" class="${state.inventoryFilter === id ? "active" : ""}">${label} <span>${counts[id]}</span></button>`;
   renderShell(`
     <section class="kpi-grid compact">
-      <div class="kpi"><span>Valor inventario a costo</span><strong>Bs ${money(summary.valorCosto)}</strong></div>
-      <div class="kpi"><span>Valor proyectado venta</span><strong>Bs ${money(summary.valorVenta)}</strong></div>
-      <div class="kpi"><span>Margen potencial</span><strong>Bs ${money(summary.margenPotencial)}</strong></div>
+      <div class="kpi"><span>Valor inventario a costo</span><strong>${currency(summary.valorCosto)}</strong></div>
+      <div class="kpi"><span>Valor proyectado venta</span><strong>${currency(summary.valorVenta)}</strong></div>
+      <div class="kpi"><span>Margen potencial</span><strong>${currency(summary.margenPotencial)}</strong></div>
       <div class="kpi"><span>Alertas de stock</span><strong>${summary.bajoStock}</strong></div>
     </section>
     <section class="layout inventory-control-layout">
@@ -1573,8 +1577,8 @@ function renderInventario() {
           { label: "Producto", render: x => `<strong>${esc(x.nombreComercial)}</strong><br><small>${esc(x.tipoMadera)} · ${esc(unidadNombre(x.unidadMedida))}</small>` },
           { label: "Stock", render: x => `<strong>${money(x.stockActual)} PT</strong>${stockBar(x)}<small>Min ${money(x.stockMinimo)}</small>` },
           { label: "Ubicacion", render: x => esc(x.ubicacionInterna || "-") },
-          { label: "Valor costo", render: x => `Bs ${money(x.valorCosto)}` },
-          { label: "Valor venta", render: x => `Bs ${money(x.valorVenta)}` },
+          { label: "Valor costo", render: x => currency(x.valorCosto) },
+          { label: "Valor venta", render: x => currency(x.valorVenta) },
           { label: "Estado", render: x => estadoInventarioBadge(x) }
         ], page.rows, row => `
           <div class="split-actions">
@@ -1593,7 +1597,7 @@ function renderInventario() {
           { label: "Producto", render: x => esc(findProducto(x.productoId)?.nombreComercial || x.productoId) },
           { label: "Tipo", render: x => esc(tiposMovimientoInventario[x.tipo] || x.tipo) },
           { label: "Cantidad", render: x => money(x.cantidad) },
-          { label: "Costo", render: x => money(x.costoUnitario) },
+          { label: "Costo", render: x => currency(x.costoUnitario) },
           { label: "Motivo", render: x => esc(x.motivo || "-") }
         ], movimientos)}
       </div>
@@ -1691,7 +1695,7 @@ function renderCompras() {
           { label: "Origen", key: "origen" },
           { label: "Estado", render: x => badge(["", "Pendiente", "En transito", "Recibida", "Cancelada"][x.estado] || x.estado, x.estado === 3 ? "" : "warn") },
           { label: "Fecha", render: x => date(x.fechaCompra) },
-          { label: "Total", render: x => money(x.totalProductos + x.costoTransporte + x.otrosCostos) }
+          { label: "Total", render: x => currency(x.totalProductos + x.costoTransporte + x.otrosCostos) }
         ], page.rows, row => `
           <div class="split-actions">
             ${row.estado === 1 ? `<button data-edit-compra="${row.id}">Editar</button>` : ""}
@@ -1773,8 +1777,8 @@ function renderVentas() {
         <p>Arma la venta por piezas y medidas, revisa stock antes de confirmar y cobra parcial o total en un solo flujo.</p>
       </div>
       <div class="venta-hero-metrics">
-        <div><span>Hoy</span><strong>Bs ${money(totalHoy)}</strong></div>
-        <div><span>Pendiente</span><strong>Bs ${money(saldoVentas)}</strong></div>
+        <div><span>Hoy</span><strong>${currency(totalHoy)}</strong></div>
+        <div><span>Pendiente</span><strong>${currency(saldoVentas)}</strong></div>
       </div>
     </section>
     <section class="layout sales-layout">
@@ -1823,8 +1827,8 @@ function renderVentas() {
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Fecha", render: x => date(x.fecha) },
           { label: "Estado", render: x => badge(ventaEstados[x.estado] || x.estado, x.estado === 4 ? "bad" : x.estado === 3 ? "warn" : "") },
-          { label: "Total", render: x => money(x.total) },
-          { label: "Saldo", render: x => money(x.saldoPendiente) }
+          { label: "Total", render: x => currency(x.total) },
+          { label: "Saldo", render: x => currency(x.saldoPendiente) }
         ], page.rows, row => `
           <div class="split-actions">
             ${row.estado === 1 ? `<button data-edit-venta="${row.id}">Editar</button>` : ""}
@@ -1946,7 +1950,7 @@ function renderCobros() {
         <div class="panel-header"><h3>Pago</h3></div>
         <div class="panel-body">
           <form id="pagoForm" class="grid">
-            <label class="full">Cobro<select name="cobroId" required>${entityOptions(state.cache.deudas.map(d => ({ ...d, nombre: `${findCliente(d.clienteId)?.nombreRazonSocial || d.clienteId} - saldo ${money(d.saldoPendiente)}` })), "nombre")}</select></label>
+            <label class="full">Cobro<select name="cobroId" required>${entityOptions(state.cache.deudas.map(d => ({ ...d, nombre: `${findCliente(d.clienteId)?.nombreRazonSocial || d.clienteId} - saldo ${currency(d.saldoPendiente)}` })), "nombre")}</select></label>
             <label>Monto<input name="monto" type="number" step="0.0001" required></label>
             <label>Metodo<select name="metodoPago">${options(metodosPago, 1)}</select></label>
             <label class="full">Referencia<input name="referencia"></label>
@@ -1959,8 +1963,8 @@ function renderCobros() {
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Venta", key: "ventaId" },
-          { label: "Total", render: x => money(x.montoTotal) },
-          { label: "Saldo", render: x => money(x.saldoPendiente) },
+          { label: "Total", render: x => currency(x.montoTotal) },
+          { label: "Saldo", render: x => currency(x.saldoPendiente) },
           { label: "Vence", render: x => date(x.fechaVencimiento) }
         ], page.rows)}
         ${pager("cobros", page)}
@@ -2004,16 +2008,16 @@ async function loadCaja(desde, hasta) {
   const egresos = (rows || []).filter(x => x.tipo === 2).reduce((sum, x) => sum + Number(x.monto || 0), 0);
   document.getElementById("cajaResult").innerHTML = `
     <div class="kpi-grid compact">
-      <div class="kpi"><span>Ingresos automaticos/manuales</span><strong>${money(ingresos)}</strong></div>
-      <div class="kpi"><span>Egresos</span><strong>${money(egresos)}</strong></div>
-      <div class="kpi"><span>Saldo del periodo</span><strong>${money(ingresos - egresos)}</strong></div>
+      <div class="kpi"><span>Ingresos automaticos/manuales</span><strong>${currency(ingresos)}</strong></div>
+      <div class="kpi"><span>Egresos</span><strong>${currency(egresos)}</strong></div>
+      <div class="kpi"><span>Saldo del periodo</span><strong>${currency(ingresos - egresos)}</strong></div>
       <div class="kpi"><span>Movimientos</span><strong>${(rows || []).length}</strong></div>
     </div>
     <p class="hint">Los cobros iniciales de ventas y pagos de cuentas por cobrar entran a caja automaticamente. Aqui registra solo ingresos o egresos manuales.</p>
     ${table([
     { label: "Fecha", render: x => date(x.fecha) },
     { label: "Tipo", render: x => x.tipo === 1 ? badge("Ingreso") : badge("Egreso", "warn") },
-    { label: "Monto", render: x => money(x.monto) },
+    { label: "Monto", render: x => currency(x.monto) },
     { label: "Concepto", key: "concepto" }
   ], rows || [])}
   `;
@@ -2046,7 +2050,7 @@ function renderTransportes() {
           { label: "Chofer", key: "chofer" },
           { label: "Placa", key: "placa" },
           { label: "Origen", key: "lugarOrigen" },
-          { label: "Costo", render: x => money(x.costoTransporte) },
+          { label: "Costo", render: x => currency(x.costoTransporte) },
           { label: "Estado", render: x => badge((estadosTransporte.find(e => e[0] === x.estado) || [0, x.estado])[1], x.estado === 3 ? "" : "warn") }
         ], state.cache.transportes, row => `<button data-llegar-transporte="${row.id}">Llegado</button>`)}
       </div>
@@ -2078,7 +2082,7 @@ function renderDocumentos() {
         <div class="panel-header"><h3>Documento de venta</h3></div>
         <div class="panel-body">
           <form id="documentoForm" class="grid">
-            <label class="full">Venta<select name="ventaId" required>${entityOptions(state.cache.ventas.map(v => ({ ...v, nombre: `${findCliente(v.clienteId)?.nombreRazonSocial || v.clienteId} - ${money(v.total)}` })), "nombre")}</select></label>
+            <label class="full">Venta<select name="ventaId" required>${entityOptions(state.cache.ventas.map(v => ({ ...v, nombre: `${findCliente(v.clienteId)?.nombreRazonSocial || v.clienteId} - ${currency(v.total)}` })), "nombre")}</select></label>
             <div class="actions full"><button class="primary">Generar PDF</button></div>
           </form>
           <div id="documentoResult" class="empty"></div>
@@ -2089,7 +2093,7 @@ function renderDocumentos() {
         ${table([
           { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
           { label: "Estado", render: x => ventaEstados[x.estado] || x.estado },
-          { label: "Total", render: x => money(x.total) }
+          { label: "Total", render: x => currency(x.total) }
         ], state.cache.ventas, row => `<button data-descargar-pdf="${row.id}">Descargar PDF</button>`)}
       </div>
     </section>
@@ -2123,8 +2127,8 @@ function renderReportes() {
         <div class="panel-body">
           <div class="report-quick">
             ${reportMetric("Ventas", state.cache.ventas.filter(x => x.estado !== 4).length, "Operaciones no anuladas")}
-            ${reportMetric("Vendido", money(state.cache.ventas.filter(x => x.estado !== 4).reduce((sum, x) => sum + Number(x.total || 0), 0)), "Total historico cargado")}
-            ${reportMetric("Deuda", money(state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0)), "Cuentas por cobrar")}
+            ${reportMetric("Vendido", currency(state.cache.ventas.filter(x => x.estado !== 4).reduce((sum, x) => sum + Number(x.total || 0), 0)), "Total historico cargado")}
+            ${reportMetric("Deuda", currency(state.cache.deudas.reduce((sum, x) => sum + Number(x.saldoPendiente || 0), 0)), "Cuentas por cobrar")}
             ${reportMetric("Bajo stock", state.cache.inventario.filter(x => Number(x.stockActual) <= Number(x.stockMinimo)).length, "Productos a revisar")}
           </div>
           <form id="reportForm" class="grid">
@@ -2184,16 +2188,16 @@ function renderReportes() {
           <p class="hint">Periodo ${esc(data.desde)} a ${esc(data.hasta)}. Este resumen cruza ventas, caja, cobranza e inventario critico.</p>
           <div class="kpi-grid">
             <div class="kpi"><span>Ventas</span><strong>${ventas.cantidadVentas}</strong></div>
-            <div class="kpi"><span>Total vendido</span><strong>${money(ventas.totalVentas)}</strong></div>
-            <div class="kpi"><span>Pagado</span><strong>${money(ventas.totalPagado)}</strong></div>
-            <div class="kpi"><span>Saldo ventas</span><strong>${money(ventas.saldoPendiente)}</strong></div>
-            <div class="kpi"><span>Ingresos caja</span><strong>${money(caja.ingresos)}</strong></div>
-            <div class="kpi"><span>Egresos caja</span><strong>${money(caja.egresos)}</strong></div>
-            <div class="kpi"><span>Saldo caja</span><strong>${money(caja.saldo)}</strong></div>
+            <div class="kpi"><span>Total vendido</span><strong>${currency(ventas.totalVentas)}</strong></div>
+            <div class="kpi"><span>Pagado</span><strong>${currency(ventas.totalPagado)}</strong></div>
+            <div class="kpi"><span>Saldo ventas</span><strong>${currency(ventas.saldoPendiente)}</strong></div>
+            <div class="kpi"><span>Ingresos caja</span><strong>${currency(caja.ingresos)}</strong></div>
+            <div class="kpi"><span>Egresos caja</span><strong>${currency(caja.egresos)}</strong></div>
+            <div class="kpi"><span>Saldo caja</span><strong>${currency(caja.saldo)}</strong></div>
             <div class="kpi"><span>Bajo stock</span><strong>${bajo.length}</strong></div>
           </div>
           <div class="layout report-detail-layout">
-            <div class="panel"><div class="panel-header"><h3>Clientes deudores</h3></div>${table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => money(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], deudores.slice(0, 8))}</div>
+            <div class="panel"><div class="panel-header"><h3>Clientes deudores</h3></div>${table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => currency(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], deudores.slice(0, 8))}</div>
             <div class="panel"><div class="panel-header"><h3>Inventario bajo</h3></div>${table([{ label: "Producto", key: "producto" }, { label: "Stock", render: x => money(x.stockActual) }, { label: "Minimo", render: x => money(x.stockMinimo) }], bajo.slice(0, 8))}</div>
           </div>
         </div>
@@ -2216,7 +2220,7 @@ function renderReportes() {
         { label: "Saldo", key: "saldoPendiente" }
       ]
     };
-    reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Cantidad</span><strong>${r.cantidadVentas}</strong></div><div class="kpi"><span>Total</span><strong>${money(r.totalVentas)}</strong></div><div class="kpi"><span>Pagado</span><strong>${money(r.totalPagado)}</strong></div><div class="kpi"><span>Saldo</span><strong>${money(r.saldoPendiente)}</strong></div></div>`);
+    reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Cantidad</span><strong>${r.cantidadVentas}</strong></div><div class="kpi"><span>Total</span><strong>${currency(r.totalVentas)}</strong></div><div class="kpi"><span>Pagado</span><strong>${currency(r.totalPagado)}</strong></div><div class="kpi"><span>Saldo</span><strong>${currency(r.saldoPendiente)}</strong></div></div>`);
   };
   document.getElementById("reporteCaja").onclick = async () => {
     const data = formData(form);
@@ -2232,7 +2236,7 @@ function renderReportes() {
         { label: "Saldo", key: "saldo" }
       ]
     };
-    reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Ingresos</span><strong>${money(r.ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${money(r.egresos)}</strong></div><div class="kpi"><span>Saldo</span><strong>${money(r.saldo)}</strong></div></div>`);
+    reportHtml(`<div class="kpi-grid"><div class="kpi"><span>Ingresos</span><strong>${currency(r.ingresos)}</strong></div><div class="kpi"><span>Egresos</span><strong>${currency(r.egresos)}</strong></div><div class="kpi"><span>Saldo</span><strong>${currency(r.saldo)}</strong></div></div>`);
   };
   document.getElementById("reporteBajo").onclick = async () => {
     const rows = await safe(() => api("/api/reportes/inventario-bajo"), "");
@@ -2260,7 +2264,7 @@ function renderReportes() {
         { label: "Ciudad", key: "ciudad" }
       ]
     };
-    reportHtml(table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => money(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], rows));
+    reportHtml(table([{ label: "Cliente", key: "nombreRazonSocial" }, { label: "Deuda", render: x => currency(x.deudaTotal) }, { label: "Telefono", key: "telefono" }], rows));
   };
   document.getElementById("exportarReporte").onclick = () => {
     if (!ultimoReporte) {
@@ -2295,7 +2299,7 @@ function renderReportHome() {
           <div class="panel-header"><h3>Deudas mas importantes</h3></div>
           ${table([
             { label: "Cliente", render: x => esc(findCliente(x.clienteId)?.nombreRazonSocial || x.clienteId) },
-            { label: "Saldo", render: x => money(x.saldoPendiente) },
+            { label: "Saldo", render: x => currency(x.saldoPendiente) },
             { label: "Vence", render: x => date(x.fechaVencimiento) }
           ], deudores)}
         </div>

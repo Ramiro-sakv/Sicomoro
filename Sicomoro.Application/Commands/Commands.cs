@@ -389,11 +389,21 @@ public sealed class CompraHandlers(IUnitOfWork uow, ICurrentUserService currentU
     public async Task<CompraDto> Handle(ActualizarCompraCommand r, CancellationToken ct)
     {
         if (r.Detalles.Count == 0) throw new InvalidOperationException("La compra debe tener detalle.");
-        var compra = await uow.Compras.ObtenerPorIdAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
-        compra.ActualizarPendiente(r.ProveedorId, r.Origen, r.FechaCompra, r.FechaEstimadaLlegada, r.CostoTransporte, r.OtrosCostos, r.Observaciones);
-        await uow.Compras.EliminarDetallesAsync(compra.Id, ct);
-        foreach (var d in r.Detalles) compra.AgregarDetalle(d.ProductoId, d.Cantidad, d.PrecioCompra);
+        var estado = await uow.Compras.ObtenerEstadoAsync(r.CompraId, ct);
+        if (estado is null) throw new KeyNotFoundException("Compra no encontrada.");
+        if (estado != EstadoCompra.Pendiente) throw new InvalidOperationException("Solo se puede editar una compra pendiente.");
+
+        await using var tx = await uow.BeginTransactionAsync(ct);
+        var filasActualizadas = await uow.Compras.ActualizarPendienteAsync(r.CompraId, r.ProveedorId, r.Origen.Trim(), r.FechaCompra, r.FechaEstimadaLlegada, r.CostoTransporte, r.OtrosCostos, r.Observaciones, ct);
+        if (filasActualizadas == 0) throw new InvalidOperationException("La compra ya no esta pendiente o fue modificada. Actualiza la pagina e intenta de nuevo.");
+
+        await uow.Compras.EliminarDetallesAsync(r.CompraId, ct);
+        foreach (var d in r.Detalles)
+            await uow.AgregarAsync(new CompraDetalle(r.CompraId, d.ProductoId, d.Cantidad, d.PrecioCompra), ct);
         await uow.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var compra = await uow.Compras.ObtenerConDetallesAsync(r.CompraId, ct) ?? throw new KeyNotFoundException("Compra no encontrada.");
         return compra.ToDto();
     }
 
@@ -469,16 +479,30 @@ public sealed class VentaHandlers(IUnitOfWork uow, ICurrentUserService currentUs
     public async Task<VentaDto> Handle(ActualizarVentaCommand r, CancellationToken ct)
     {
         if (r.Detalles.Count == 0) throw new InvalidOperationException("La venta debe tener detalle.");
-        var venta = await uow.Ventas.ObtenerPorIdAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
-        venta.ActualizarPendiente(r.ClienteId, r.MetodoPago, r.FechaVencimiento, r.Observaciones);
-        await uow.Ventas.EliminarDetallesAsync(venta.Id, ct);
+        var estado = await uow.Ventas.ObtenerEstadoAsync(r.VentaId, ct);
+        if (estado is null) throw new KeyNotFoundException("Venta no encontrada.");
+        if (estado != EstadoVenta.Pendiente) throw new InvalidOperationException("Solo se puede editar una venta pendiente.");
+
+        var detalles = new List<VentaDetalle>();
         foreach (var detalle in r.Detalles)
         {
             var producto = await uow.Productos.ObtenerPorIdAsync(detalle.ProductoId, ct) ?? throw new KeyNotFoundException("Producto no encontrado.");
             var precio = detalle.PrecioUnitario ?? pricing.Calcular(detalle.PricingStrategy, producto, detalle.Cantidad, detalle.Descuento);
-            venta.AgregarDetalle(detalle.ProductoId, detalle.Cantidad, precio, detalle.Descuento);
+            detalles.Add(new VentaDetalle(r.VentaId, detalle.ProductoId, detalle.Cantidad, precio, detalle.Descuento));
         }
+        var total = detalles.Sum(x => x.Subtotal);
+
+        await using var tx = await uow.BeginTransactionAsync(ct);
+        var filasActualizadas = await uow.Ventas.ActualizarPendienteAsync(r.VentaId, r.ClienteId, r.MetodoPago, r.FechaVencimiento, r.Observaciones, total, ct);
+        if (filasActualizadas == 0) throw new InvalidOperationException("La venta ya no esta pendiente o fue modificada. Actualiza la pagina e intenta de nuevo.");
+
+        await uow.Ventas.EliminarDetallesAsync(r.VentaId, ct);
+        foreach (var detalle in detalles)
+            await uow.AgregarAsync(detalle, ct);
         await uow.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var venta = await uow.Ventas.ObtenerConDetallesAsync(r.VentaId, ct) ?? throw new KeyNotFoundException("Venta no encontrada.");
         return venta.ToDto();
     }
 

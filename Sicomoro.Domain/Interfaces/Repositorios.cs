@@ -1,5 +1,6 @@
 using Sicomoro.Domain.Common;
 using Sicomoro.Domain.Entities;
+using Sicomoro.Domain.Enums;
 
 namespace Sicomoro.Domain.Interfaces;
 
@@ -42,12 +43,16 @@ public interface IInventarioRepository : IRepository<Inventario>
 public interface ICompraRepository : IRepository<Compra>
 {
     Task<Compra?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<EstadoCompra?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<int> ActualizarPendienteAsync(Guid id, Guid proveedorId, string origen, DateTime fechaCompra, DateTime? fechaEstimadaLlegada, decimal costoTransporte, decimal otrosCostos, string? observaciones, CancellationToken cancellationToken = default);
     Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default);
 }
 
 public interface IVentaRepository : IRepository<Venta>
 {
     Task<Venta?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<EstadoVenta?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<int> ActualizarPendienteAsync(Guid id, Guid clienteId, MetodoPago metodoPago, DateTime? fechaVencimiento, string? observaciones, decimal total, CancellationToken cancellationToken = default);
     Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default);
 }
 

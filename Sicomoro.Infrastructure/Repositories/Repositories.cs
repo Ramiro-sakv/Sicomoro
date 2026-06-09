@@ -94,6 +94,23 @@ public sealed class CompraRepository(SicomoroDbContext db) : Repository<Compra>(
     public Task<Compra?> ObtenerConDetallesAsync(Guid id, CancellationToken cancellationToken = default) =>
         Db.Compras.Include(x => x.Detalles).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+    public async Task<EstadoCompra?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        await Db.Compras.AsNoTracking().Where(x => x.Id == id).Select(x => (EstadoCompra?)x.Estado).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<int> ActualizarPendienteAsync(Guid id, Guid proveedorId, string origen, DateTime fechaCompra, DateTime? fechaEstimadaLlegada, decimal costoTransporte, decimal otrosCostos, string? observaciones, CancellationToken cancellationToken = default) =>
+        Db.Compras
+            .Where(x => x.Id == id && x.Estado == EstadoCompra.Pendiente)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.ProveedorId, proveedorId)
+                .SetProperty(x => x.Origen, origen)
+                .SetProperty(x => x.FechaCompra, fechaCompra)
+                .SetProperty(x => x.FechaEstimadaLlegada, fechaEstimadaLlegada)
+                .SetProperty(x => x.CostoTransporte, costoTransporte)
+                .SetProperty(x => x.OtrosCostos, otrosCostos)
+                .SetProperty(x => x.Observaciones, observaciones)
+                .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
+                cancellationToken);
+
     public Task EliminarDetallesAsync(Guid compraId, CancellationToken cancellationToken = default) =>
         Db.CompraDetalles.Where(x => x.CompraId == compraId).ExecuteDeleteAsync(cancellationToken);
 }
@@ -109,6 +126,21 @@ public sealed class VentaRepository(SicomoroDbContext db) : Repository<Venta>(db
             .ThenInclude(x => x.ProductoMadera)
             .Include(x => x.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    public async Task<EstadoVenta?> ObtenerEstadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        await Db.Ventas.AsNoTracking().Where(x => x.Id == id).Select(x => (EstadoVenta?)x.Estado).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<int> ActualizarPendienteAsync(Guid id, Guid clienteId, MetodoPago metodoPago, DateTime? fechaVencimiento, string? observaciones, decimal total, CancellationToken cancellationToken = default) =>
+        Db.Ventas
+            .Where(x => x.Id == id && x.Estado == EstadoVenta.Pendiente)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.ClienteId, clienteId)
+                .SetProperty(x => x.MetodoPago, metodoPago)
+                .SetProperty(x => x.FechaVencimiento, fechaVencimiento)
+                .SetProperty(x => x.Observaciones, observaciones)
+                .SetProperty(x => x.Total, total)
+                .SetProperty(x => x.ActualizadoEn, DateTime.UtcNow),
+                cancellationToken);
 
     public Task EliminarDetallesAsync(Guid ventaId, CancellationToken cancellationToken = default) =>
         Db.VentaDetalles.Where(x => x.VentaId == ventaId).ExecuteDeleteAsync(cancellationToken);

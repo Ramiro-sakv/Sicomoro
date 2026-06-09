@@ -19,8 +19,7 @@ public static class DependencyInjection
         var connectionString = ResolvePostgresConnectionString(configuration);
 
         services.AddDbContext<SicomoroDbContext>(options =>
-            options.UseNpgsql(connectionString, npgsql =>
-                npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null)));
+            options.UseNpgsql(connectionString));
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ISistemaMantenimientoService, SistemaMantenimientoService>();

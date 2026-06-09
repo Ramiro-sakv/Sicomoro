@@ -25,7 +25,7 @@ public sealed class DocumentosController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Descargar(Guid ventaId, CancellationToken ct)
     {
         var documento = await mediator.Send(new ObtenerDocumentoVentaArchivoQuery(ventaId), ct);
-        if (documento is null)
+        if (documento is null || !System.IO.File.Exists(documento.RutaArchivo))
         {
             var generado = await mediator.Send(new GenerarDocumentoVentaCommand(ventaId), ct);
             documento = await mediator.Send(new ObtenerDocumentoVentaArchivoQuery(generado.VentaId, generado.Tipo), ct);

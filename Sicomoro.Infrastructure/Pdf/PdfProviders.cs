@@ -137,44 +137,55 @@ internal static class SimplePdfWriter
         AddText(pdf, $"Generado por: {usuarioNombre}", 380, 646, 10, false, "0.25 0.33 0.30");
         AddText(pdf, $"Venta: {venta.Id.ToString()[..8]}", 380, 629, 10, false, "0.25 0.33 0.30");
 
-        AddText(pdf, "Detalle de productos", 42, 578, 13, true, "0.08 0.12 0.10");
+        AddText(pdf, "Detalle de la compra", 42, 578, 13, true, "0.08 0.12 0.10");
         AddRect(pdf, 36, 548, 540, 24, "0.90 0.94 0.91", "0.78 0.84 0.80");
         AddText(pdf, "Producto", 48, 556, 9, true, "0.14 0.26 0.20");
-        AddText(pdf, "Cant.", 306, 556, 9, true, "0.14 0.26 0.20");
-        AddText(pdf, "P/U", 365, 556, 9, true, "0.14 0.26 0.20");
-        AddText(pdf, "Desc.", 430, 556, 9, true, "0.14 0.26 0.20");
-        AddText(pdf, "Subtotal", 500, 556, 9, true, "0.14 0.26 0.20");
+        AddText(pdf, "Medida", 214, 556, 9, true, "0.14 0.26 0.20");
+        AddText(pdf, "Cant. PT", 318, 556, 9, true, "0.14 0.26 0.20");
+        AddText(pdf, "P/U", 382, 556, 9, true, "0.14 0.26 0.20");
+        AddText(pdf, "Desc.", 444, 556, 9, true, "0.14 0.26 0.20");
+        AddText(pdf, "Subtotal", 506, 556, 9, true, "0.14 0.26 0.20");
 
         var y = 526;
-        foreach (var detalle in venta.Detalles.Take(11))
+        foreach (var detalle in venta.Detalles.Take(8))
         {
-            var producto = detalle.ProductoMadera?.NombreComercial ?? $"Producto {detalle.ProductoMaderaId.ToString()[..8]}";
-            AddLine(pdf, 36, y + 16, 576, y + 16, "0.88 0.91 0.89");
-            AddText(pdf, Truncate(producto, 44), 48, y, 9, false, "0.08 0.12 0.10");
-            AddText(pdf, Qty(detalle.Cantidad), 306, y, 9, false, "0.08 0.12 0.10");
-            AddText(pdf, Money(detalle.PrecioUnitario), 365, y, 9, false, "0.08 0.12 0.10");
-            AddText(pdf, Money(detalle.Descuento), 430, y, 9, false, "0.08 0.12 0.10");
-            AddText(pdf, Money(detalle.Subtotal), 500, y, 9, true, "0.08 0.12 0.10");
-            y -= 24;
+            var producto = detalle.ProductoMadera;
+            var nombre = producto?.NombreComercial ?? $"Producto {detalle.ProductoMaderaId.ToString()[..8]}";
+            AddLine(pdf, 36, y + 17, 576, y + 17, "0.88 0.91 0.89");
+            AddText(pdf, Truncate(nombre, 28), 48, y + 3, 9, true, "0.08 0.12 0.10");
+            AddText(pdf, Truncate(ProductoDescripcion(producto), 31), 48, y - 10, 7, false, "0.36 0.45 0.41");
+            AddText(pdf, Truncate(Medida(producto), 18), 214, y + 3, 8, false, "0.08 0.12 0.10");
+            AddText(pdf, "largo x ancho x espesor", 214, y - 10, 7, false, "0.36 0.45 0.41");
+            AddText(pdf, Qty(detalle.Cantidad), 318, y + 3, 8, false, "0.08 0.12 0.10");
+            AddText(pdf, Money(detalle.PrecioUnitario), 382, y + 3, 8, false, "0.08 0.12 0.10");
+            AddText(pdf, Money(detalle.Descuento), 444, y + 3, 8, false, "0.08 0.12 0.10");
+            AddText(pdf, Money(detalle.Subtotal), 506, y + 3, 8, true, "0.08 0.12 0.10");
+            y -= 36;
         }
 
-        if (venta.Detalles.Count > 11)
-            AddText(pdf, $"+ {venta.Detalles.Count - 11} productos mas en esta venta", 48, y, 9, true, "0.55 0.35 0.08");
+        if (venta.Detalles.Count > 8)
+            AddText(pdf, $"+ {venta.Detalles.Count - 8} productos mas en esta venta", 48, y + 12, 9, true, "0.55 0.35 0.08");
 
-        AddRect(pdf, 352, 148, 224, 90, "1 1 1", "0.78 0.84 0.80");
-        AddText(pdf, "Resumen", 370, 214, 11, true, "0.08 0.12 0.10");
-        AddText(pdf, "Total", 370, 194, 10, false, "0.25 0.33 0.30");
-        AddText(pdf, Money(venta.Total), 488, 194, 11, true, "0.08 0.12 0.10");
-        AddText(pdf, "Pagado", 370, 174, 10, false, "0.25 0.33 0.30");
-        AddText(pdf, Money(venta.MontoPagado), 488, 174, 11, true, "0.08 0.12 0.10");
-        AddText(pdf, "Saldo", 370, 154, 10, false, "0.25 0.33 0.30");
-        AddText(pdf, Money(venta.SaldoPendiente), 488, 154, 11, true, venta.SaldoPendiente > 0 ? "0.65 0.25 0.20" : "0.13 0.36 0.25");
+        AddRect(pdf, 352, 126, 224, 112, "1 1 1", "0.78 0.84 0.80");
+        AddText(pdf, "Resumen", 370, 216, 11, true, "0.08 0.12 0.10");
+        AddText(pdf, "Total pies tablares", 370, 198, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, Qty(venta.Detalles.Sum(x => x.Cantidad)), 488, 198, 9, true, "0.08 0.12 0.10");
+        AddText(pdf, "Subtotal productos", 370, 180, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, Money(venta.Detalles.Sum(x => x.Cantidad * x.PrecioUnitario)), 488, 180, 9, true, "0.08 0.12 0.10");
+        AddText(pdf, "Descuento", 370, 162, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, Money(venta.Detalles.Sum(x => x.Descuento)), 488, 162, 9, true, "0.08 0.12 0.10");
+        AddText(pdf, "Total", 370, 144, 9, true, "0.25 0.33 0.30");
+        AddText(pdf, Money(venta.Total), 488, 144, 10, true, "0.08 0.12 0.10");
+        AddText(pdf, "Saldo", 370, 130, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, Money(venta.SaldoPendiente), 488, 130, 9, true, venta.SaldoPendiente > 0 ? "0.65 0.25 0.20" : "0.13 0.36 0.25");
 
-        AddRect(pdf, 36, 148, 284, 90, "0.96 0.98 0.96", "0.82 0.87 0.84");
-        AddText(pdf, "Observacion", 52, 214, 10, true, "0.08 0.12 0.10");
-        AddText(pdf, "Documento interno para control de venta y entrega.", 52, 194, 9, false, "0.25 0.33 0.30");
-        AddText(pdf, "No reemplaza factura fiscal oficial.", 52, 178, 9, false, "0.65 0.25 0.20");
-        AddText(pdf, "Gracias por su compra.", 52, 162, 9, true, "0.13 0.36 0.25");
+        AddRect(pdf, 36, 126, 284, 112, "0.96 0.98 0.96", "0.82 0.87 0.84");
+        AddText(pdf, "Observacion", 52, 216, 10, true, "0.08 0.12 0.10");
+        AddText(pdf, "Medidas: largo en pies; ancho y espesor en pulgadas.", 52, 196, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, "Cant. PT corresponde a pies tablares entregados.", 52, 180, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, "Documento interno para control de venta y entrega.", 52, 164, 8, false, "0.25 0.33 0.30");
+        AddText(pdf, "No reemplaza factura fiscal oficial.", 52, 148, 8, false, "0.65 0.25 0.20");
+        AddText(pdf, "Gracias por su compra.", 52, 132, 9, true, "0.13 0.36 0.25");
 
         AddLine(pdf, 36, 104, 576, 104, "0.78 0.84 0.80");
         AddText(pdf, "Sicomoro - control interno de barraca de madera", 42, 84, 9, false, "0.36 0.45 0.41");
@@ -319,10 +330,35 @@ internal static class SimplePdfWriter
     }
 
     private static string Money(decimal value) =>
-        value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
+        $"Bs {value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("es-BO"))}";
 
     private static string Qty(decimal value) =>
         value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
+
+    private static string Medida(ProductoMadera? producto)
+    {
+        if (producto is null)
+            return "Sin medida";
+
+        var largo = producto.Largo > 0 ? $"{Dimension(producto.Largo)} pies" : "-";
+        var ancho = producto.Ancho > 0 ? $"{Dimension(producto.Ancho)} pulg" : "-";
+        var espesor = producto.Espesor > 0 ? $"{Dimension(producto.Espesor)} pulg" : "-";
+        return $"{largo} x {ancho} x {espesor}";
+    }
+
+    private static string ProductoDescripcion(ProductoMadera? producto)
+    {
+        if (producto is null)
+            return "Producto sin catalogo";
+
+        var partes = new List<string> { producto.TipoMadera, producto.UnidadMedida.ToString() };
+        if (!string.IsNullOrWhiteSpace(producto.Calidad))
+            partes.Add($"Calidad {producto.Calidad}");
+        return string.Join(" | ", partes.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string Dimension(decimal value) =>
+        value.ToString("0.####", System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..Math.Max(0, maxLength - 3)] + "...";

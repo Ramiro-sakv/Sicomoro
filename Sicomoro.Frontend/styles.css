@@ -899,6 +899,10 @@ th {
   align-items: start;
 }
 
+.advanced-report .panel {
+  box-shadow: none;
+}
+
 .product-inventory-layout,
 .inventory-control-layout {
   align-items: start;
@@ -968,6 +972,35 @@ th {
 .product-movement-panel h3 {
   margin: 0 0 10px;
   font-size: 15px;
+}
+
+.product-movement-panel h4 {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  color: #40504a;
+}
+
+.product-history-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.cash-layout {
+  grid-template-columns: minmax(280px, 380px) minmax(360px, 1fr);
+}
+
+.cash-close-result {
+  margin-top: 14px;
+}
+
+.cash-close-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cash-close-grid .badge {
+  margin-top: 6px;
 }
 
 .stock-meter {
@@ -1638,7 +1671,8 @@ html.mobile-device .panel-body {
 html.mobile-device .topbar,
 html.mobile-device .panel-header,
 html.mobile-device .pager,
-html.mobile-device .line-header {
+html.mobile-device .line-header,
+html.mobile-device .product-history-head {
   align-items: stretch;
   flex-direction: column;
 }
@@ -1986,7 +2020,8 @@ html.mobile-device .client-access-card {
   .topbar,
   .panel-header,
   .pager,
-  .line-header {
+  .line-header,
+  .product-history-head {
     align-items: stretch;
     flex-direction: column;
   }

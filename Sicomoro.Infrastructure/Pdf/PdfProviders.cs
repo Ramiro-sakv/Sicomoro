@@ -6,6 +6,15 @@ using Sicomoro.Domain.Enums;
 
 namespace Sicomoro.Infrastructure.Pdf;
 
+public sealed record ComprobanteEmpresaOptions(string Nombre, string Subtitulo, string? Telefono, string? Direccion)
+{
+    public static ComprobanteEmpresaOptions FromConfiguration(IConfiguration configuration) => new(
+        configuration["Empresa:Nombre"] ?? "Sicomoro",
+        configuration["Empresa:Subtitulo"] ?? "Barraca de madera",
+        configuration["Empresa:Telefono"],
+        configuration["Empresa:Direccion"]);
+}
+
 public abstract class DocumentoPdfTemplate
 {
     public virtual byte[] Generar(Venta venta, string numero, Guid usuarioId, string usuarioNombre)
@@ -51,8 +60,15 @@ public abstract class DocumentoPdfTemplate
 
 public sealed class ComprobanteVentaPdf : DocumentoPdfTemplate
 {
+    private readonly ComprobanteEmpresaOptions _empresa;
+
+    public ComprobanteVentaPdf(ComprobanteEmpresaOptions? empresa = null)
+    {
+        _empresa = empresa ?? new ComprobanteEmpresaOptions("Sicomoro", "Barraca de madera", null, null);
+    }
+
     public override byte[] Generar(Venta venta, string numero, Guid usuarioId, string usuarioNombre) =>
-        SimplePdfWriter.WriteComprobante(venta, numero, usuarioNombre);
+        SimplePdfWriter.WriteComprobante(venta, numero, usuarioNombre, _empresa);
 
     protected override void AgregarDetalle(List<string> lineas, Venta venta)
     {
@@ -84,7 +100,7 @@ public sealed class PdfComprobanteProvider(IConfiguration configuration, IEmailS
         var basePath = configuration["Storage:DocumentosPath"] ?? Path.Combine(AppContext.BaseDirectory, "documentos");
         Directory.CreateDirectory(basePath);
         var path = Path.Combine(basePath, $"{numero}.pdf");
-        var bytes = new ComprobanteVentaPdf().Generar(venta, numero, usuarioId, usuarioNombre);
+        var bytes = new ComprobanteVentaPdf(ComprobanteEmpresaOptions.FromConfiguration(configuration)).Generar(venta, numero, usuarioId, usuarioNombre);
         await File.WriteAllBytesAsync(path, bytes, cancellationToken);
         return new DocumentoVenta(venta.Id, TipoDocumentoVenta.ComprobanteVenta, numero, path, usuarioId);
     }
@@ -119,13 +135,14 @@ public sealed class LoggingDocumentoServiceDecorator(IFacturacionProvider inner)
 
 internal static class SimplePdfWriter
 {
-    public static byte[] WriteComprobante(Venta venta, string numero, string usuarioNombre)
+    public static byte[] WriteComprobante(Venta venta, string numero, string usuarioNombre, ComprobanteEmpresaOptions empresa)
     {
         var pdf = new StringBuilder();
         AddRect(pdf, 0, 0, 612, 792, "0.98 0.99 0.98");
-        AddRect(pdf, 36, 704, 540, 58, "0.13 0.36 0.25");
-        AddText(pdf, "SICOMORO", 52, 736, 22, true, "1 1 1");
-        AddText(pdf, "Barraca de madera", 52, 718, 10, false, "0.88 0.95 0.90");
+        AddRect(pdf, 36, 696, 540, 66, "0.13 0.36 0.25");
+        AddText(pdf, Truncate(empresa.Nombre.ToUpperInvariant(), 26), 52, 736, 22, true, "1 1 1");
+        AddText(pdf, Truncate(empresa.Subtitulo, 45), 52, 718, 10, false, "0.88 0.95 0.90");
+        AddText(pdf, Truncate(EmpresaContacto(empresa), 62), 52, 704, 8, false, "0.80 0.92 0.84");
         AddText(pdf, "COMPROBANTE INTERNO", 390, 738, 11, true, "1 1 1");
         AddText(pdf, numero, 390, 720, 10, true, "1 1 1");
 
@@ -188,7 +205,7 @@ internal static class SimplePdfWriter
         AddText(pdf, "Gracias por su compra.", 52, 132, 9, true, "0.13 0.36 0.25");
 
         AddLine(pdf, 36, 104, 576, 104, "0.78 0.84 0.80");
-        AddText(pdf, "Sicomoro - control interno de barraca de madera", 42, 84, 9, false, "0.36 0.45 0.41");
+        AddText(pdf, Truncate($"{empresa.Nombre} - control interno de venta y entrega", 78), 42, 84, 9, false, "0.36 0.45 0.41");
 
         return BuildPdf(pdf.ToString());
     }
@@ -355,6 +372,14 @@ internal static class SimplePdfWriter
         if (!string.IsNullOrWhiteSpace(producto.Calidad))
             partes.Add($"Calidad {producto.Calidad}");
         return string.Join(" | ", partes.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string EmpresaContacto(ComprobanteEmpresaOptions empresa)
+    {
+        var partes = new[] { empresa.Direccion, empresa.Telefono }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+        return partes.Count == 0 ? "Control interno de barraca de madera" : string.Join(" | ", partes);
     }
 
     private static string Dimension(decimal value) =>

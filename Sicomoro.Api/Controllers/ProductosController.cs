@@ -17,6 +17,10 @@ public sealed class ProductosController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Get(CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await mediator.Send(new ListarProductosQuery(), ct)));
 
+    [HttpGet("{id:guid}/historial")]
+    public async Task<ActionResult<ApiResponse<object>>> Historial(Guid id, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await mediator.Send(new ObtenerProductoHistorialQuery(id), ct)));
+
     [HttpPost]
     [Authorize(Roles = AppRoles.InventarioGestion)]
     public async Task<ActionResult<ApiResponse<object>>> Post(CrearProductoCommand command, CancellationToken ct) =>

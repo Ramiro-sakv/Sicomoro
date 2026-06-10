@@ -12,6 +12,7 @@ public interface IReportesProxy
     Task<List<InventarioDto>> InventarioBajoAsync(CancellationToken ct);
     Task<List<ClienteDto>> ClientesDeudoresAsync(CancellationToken ct);
     Task<ReporteCajaDto> CajaAsync(DateTime desde, DateTime hasta, CancellationToken ct);
+    Task<ReporteNegocioDto> NegocioAsync(DateTime desde, DateTime hasta, CancellationToken ct);
 }
 
 public sealed class ReportesProxy(IMediator mediator, ICurrentUserService currentUser) : IReportesProxy
@@ -40,10 +41,15 @@ public sealed class ReportesProxy(IMediator mediator, ICurrentUserService curren
         return mediator.Send(new ReporteCajaQuery(desde, hasta), ct);
     }
 
+    public Task<ReporteNegocioDto> NegocioAsync(DateTime desde, DateTime hasta, CancellationToken ct)
+    {
+        VerificarPermiso();
+        return mediator.Send(new ReporteNegocioAvanzadoQuery(desde, hasta), ct);
+    }
+
     private void VerificarPermiso()
     {
         if (currentUser.Rol is not (RolSistema.Administrador or RolSistema.Gerente))
             throw new UnauthorizedAccessException("No tiene permiso para reportes sensibles.");
     }
 }
-

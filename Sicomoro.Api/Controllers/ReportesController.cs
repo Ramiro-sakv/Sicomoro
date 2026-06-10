@@ -27,4 +27,8 @@ public sealed class ReportesController(IReportesProxy reportes) : ControllerBase
     [HttpGet("caja")]
     public async Task<ActionResult<ApiResponse<object>>> Caja([FromQuery] DateTime desde, [FromQuery] DateTime hasta, CancellationToken ct) =>
         Ok(ApiResponse<object>.Ok(await reportes.CajaAsync(desde, hasta, ct)));
+
+    [HttpGet("negocio")]
+    public async Task<ActionResult<ApiResponse<object>>> Negocio([FromQuery] DateTime desde, [FromQuery] DateTime hasta, CancellationToken ct) =>
+        Ok(ApiResponse<object>.Ok(await reportes.NegocioAsync(desde, hasta, ct)));
 }

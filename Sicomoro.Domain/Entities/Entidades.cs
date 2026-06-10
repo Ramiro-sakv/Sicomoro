@@ -573,6 +573,44 @@ public sealed class CajaMovimiento : EntidadBase
     public Guid? CompraId { get; private set; }
 }
 
+public sealed class CajaCierre : EntidadBase
+{
+    private CajaCierre() { }
+
+    public CajaCierre(DateTime fecha, decimal saldoApertura, decimal ingresos, decimal egresos, decimal efectivoContado, string? observaciones, Guid usuarioId)
+    {
+        Fecha = DateTime.SpecifyKind(fecha.Date, DateTimeKind.Utc);
+        UsuarioId = usuarioId;
+        Actualizar(saldoApertura, ingresos, egresos, efectivoContado, observaciones, usuarioId);
+    }
+
+    public DateTime Fecha { get; private set; }
+    public decimal SaldoApertura { get; private set; }
+    public decimal Ingresos { get; private set; }
+    public decimal Egresos { get; private set; }
+    public decimal SaldoEsperado { get; private set; }
+    public decimal EfectivoContado { get; private set; }
+    public decimal Diferencia { get; private set; }
+    public string? Observaciones { get; private set; }
+    public Guid UsuarioId { get; private set; }
+
+    public void Actualizar(decimal saldoApertura, decimal ingresos, decimal egresos, decimal efectivoContado, string? observaciones, Guid usuarioId)
+    {
+        if (ingresos < 0 || egresos < 0) throw new InvalidOperationException("Los ingresos y egresos no pueden ser negativos.");
+        if (efectivoContado < 0) throw new InvalidOperationException("El efectivo contado no puede ser negativo.");
+
+        SaldoApertura = saldoApertura;
+        Ingresos = ingresos;
+        Egresos = egresos;
+        SaldoEsperado = saldoApertura + ingresos - egresos;
+        EfectivoContado = efectivoContado;
+        Diferencia = efectivoContado - SaldoEsperado;
+        Observaciones = observaciones;
+        UsuarioId = usuarioId;
+        MarcarActualizado();
+    }
+}
+
 public sealed class DocumentoVenta : EntidadBase
 {
     private DocumentoVenta() { }

@@ -25,6 +25,7 @@ public sealed class SicomoroDbContext(DbContextOptions<SicomoroDbContext> option
     public DbSet<Cobro> Cobros => Set<Cobro>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<CajaMovimiento> CajaMovimientos => Set<CajaMovimiento>();
+    public DbSet<CajaCierre> CajaCierres => Set<CajaCierre>();
     public DbSet<DocumentoVenta> DocumentosVenta => Set<DocumentoVenta>();
     public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
     public DbSet<Auditoria> Auditoria => Set<Auditoria>();
@@ -50,6 +51,7 @@ public sealed class SicomoroDbContext(DbContextOptions<SicomoroDbContext> option
         modelBuilder.Entity<Compra>().HasMany(x => x.Detalles).WithOne().HasForeignKey(x => x.CompraId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Venta>().HasMany(x => x.Detalles).WithOne().HasForeignKey(x => x.VentaId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Cobro>().HasMany(x => x.Pagos).WithOne().HasForeignKey(x => x.CobroId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CajaCierre>().HasIndex(x => x.Fecha).IsUnique();
         modelBuilder.Entity<AnuncioCatalogo>().HasOne(x => x.ProductoMadera).WithMany().HasForeignKey(x => x.ProductoMaderaId).OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<AnuncioCatalogo>().HasIndex(x => new { x.Publicado, x.Orden });
 

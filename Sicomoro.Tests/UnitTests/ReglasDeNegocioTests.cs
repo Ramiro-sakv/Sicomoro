@@ -111,4 +111,19 @@ public sealed class ReglasDeNegocioTests
         cobro.SaldoPendiente.Should().Be(0);
         act.Should().Throw<InvalidOperationException>().WithMessage("*cancelado*");
     }
+
+    [Fact]
+    public void CajaCierre_CalculaSaldoEsperadoYDiferencia()
+    {
+        var usuarioId = Guid.NewGuid();
+        var cierre = new CajaCierre(DateTime.UtcNow.Date, 100, 350, 75, 370, "Arqueo de prueba", usuarioId);
+
+        cierre.SaldoEsperado.Should().Be(375);
+        cierre.Diferencia.Should().Be(-5);
+
+        cierre.Actualizar(100, 350, 75, 375, null, usuarioId);
+
+        cierre.EfectivoContado.Should().Be(375);
+        cierre.Diferencia.Should().Be(0);
+    }
 }

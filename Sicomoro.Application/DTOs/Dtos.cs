@@ -18,12 +18,28 @@ public sealed record CobroDto(Guid Id, Guid VentaId, Guid ClienteId, decimal Mon
 public sealed record DocumentoDto(Guid Id, Guid VentaId, TipoDocumentoVenta Tipo, string Numero, string RutaArchivo, DateTime FechaGeneracion);
 public sealed record DocumentoArchivoDto(string Numero, string RutaArchivo);
 public sealed record CajaMovimientoDto(Guid Id, DateTime Fecha, TipoCajaMovimiento Tipo, decimal Monto, string Concepto, Guid UsuarioId, Guid? VentaId, Guid? PagoId, Guid? CompraId);
+public sealed record CajaCierreDto(Guid Id, DateTime Fecha, decimal SaldoApertura, decimal Ingresos, decimal Egresos, decimal SaldoEsperado, decimal EfectivoContado, decimal Diferencia, string? Observaciones, Guid UsuarioId);
 public sealed record NotificacionDto(Guid Id, TipoNotificacion Tipo, string Titulo, string Mensaje, Guid? UsuarioId, bool Leida, DateTime CreadoEn);
 public sealed record AuditoriaDto(Guid Id, Guid? UsuarioId, DateTime FechaHora, string Accion, string Entidad, Guid? EntidadId, string? DatosAntes, string? DatosDespues);
 public sealed record UsuarioDto(Guid Id, string Nombre, string Email, RolSistema Rol, EstadoRegistro Estado, string? CiNit, string? Telefono, string? Direccion, string? Cargo, string? Notas);
 public sealed record AnuncioCatalogoDto(Guid Id, Guid? ProductoId, string? Producto, string? TipoMadera, string? UnidadMedida, decimal? StockActual, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado);
 public sealed record ReporteVentasDto(DateTime Desde, DateTime Hasta, int CantidadVentas, decimal TotalVentas, decimal TotalPagado, decimal SaldoPendiente);
 public sealed record ReporteCajaDto(DateTime Desde, DateTime Hasta, decimal Ingresos, decimal Egresos, decimal Saldo);
+public sealed record RankingDto(string Nombre, decimal Total, decimal Cantidad);
+public sealed record SeriePeriodoDto(string Periodo, decimal Ventas, decimal Compras);
+public sealed record ReporteNegocioDto(
+    DateTime Desde,
+    DateTime Hasta,
+    decimal VentasConfirmadas,
+    decimal ComprasRecibidas,
+    decimal UtilidadBruta,
+    decimal MargenPromedio,
+    decimal InventarioValorCosto,
+    decimal InventarioValorVenta,
+    IReadOnlyCollection<RankingDto> TopClientes,
+    IReadOnlyCollection<RankingDto> TopProductos,
+    IReadOnlyCollection<SeriePeriodoDto> VentasVsCompras);
+public sealed record ProductoHistorialDto(DateTime Fecha, string Tipo, Guid ReferenciaId, string Referencia, string Producto, decimal Cantidad, decimal PrecioUnitario, decimal Total, string? Contraparte, string? Observaciones);
 public sealed record LimpiezaSistemaDto(
     int Clientes,
     int Proveedores,

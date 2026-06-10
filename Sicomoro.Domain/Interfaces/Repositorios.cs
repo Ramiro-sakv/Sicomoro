@@ -76,6 +76,11 @@ public interface ICajaRepository : IRepository<CajaMovimiento>
     Task<List<CajaMovimiento>> ListarPorRangoAsync(DateTime desde, DateTime hasta, CancellationToken cancellationToken = default);
 }
 
+public interface ICajaCierreRepository : IRepository<CajaCierre>
+{
+    Task<CajaCierre?> ObtenerPorFechaAsync(DateTime fecha, CancellationToken cancellationToken = default);
+}
+
 public interface INotificacionRepository : IRepository<Notificacion>
 {
     Task<List<Notificacion>> ListarNoLeidasAsync(CancellationToken cancellationToken = default);
@@ -113,6 +118,7 @@ public interface IUnitOfWork
     ICobroRepository Cobros { get; }
     IDocumentoRepository Documentos { get; }
     ICajaRepository Caja { get; }
+    ICajaCierreRepository CajaCierres { get; }
     IUsuarioRepository Usuarios { get; }
     INotificacionRepository Notificaciones { get; }
     IAuditoriaRepository Auditoria { get; }

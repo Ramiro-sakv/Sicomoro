@@ -210,6 +210,12 @@ public sealed class CajaRepository(SicomoroDbContext db) : Repository<CajaMovimi
         Db.CajaMovimientos.AsNoTracking().Where(x => x.Fecha >= desde && x.Fecha <= hasta).ToListAsync(cancellationToken);
 }
 
+public sealed class CajaCierreRepository(SicomoroDbContext db) : Repository<CajaCierre>(db), ICajaCierreRepository
+{
+    public Task<CajaCierre?> ObtenerPorFechaAsync(DateTime fecha, CancellationToken cancellationToken = default) =>
+        Db.CajaCierres.FirstOrDefaultAsync(x => x.Fecha == DateTime.SpecifyKind(fecha.Date, DateTimeKind.Utc), cancellationToken);
+}
+
 public sealed class NotificacionRepository(SicomoroDbContext db) : Repository<Notificacion>(db), INotificacionRepository
 {
     public Task<List<Notificacion>> ListarNoLeidasAsync(CancellationToken cancellationToken = default) =>
@@ -248,6 +254,7 @@ public sealed class UnitOfWork(SicomoroDbContext db) : IUnitOfWork
     public ICobroRepository Cobros { get; } = new CobroRepository(db);
     public IDocumentoRepository Documentos { get; } = new DocumentoRepository(db);
     public ICajaRepository Caja { get; } = new CajaRepository(db);
+    public ICajaCierreRepository CajaCierres { get; } = new CajaCierreRepository(db);
     public IUsuarioRepository Usuarios { get; } = new UsuarioRepository(db);
     public INotificacionRepository Notificaciones { get; } = new NotificacionRepository(db);
     public IAuditoriaRepository Auditoria { get; } = new AuditoriaRepository(db);

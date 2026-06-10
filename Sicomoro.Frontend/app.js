@@ -1,6 +1,6 @@
 const API_DEFAULT = window.SICOMORO_API_BASE
   || (["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://localhost:8080" : window.location.origin);
-const APP_VERSION = "v1.9.0-contabilidad";
+const APP_VERSION = "v2.0.0-reportes-caja";
 const OPERATION_KEY_HEADER = "X-Sicomoro-Operation-Key";
 const MAX_CATALOG_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 let deferredInstallPrompt = null;
@@ -39,6 +39,7 @@ const state = {
   selectedProveedorId: "",
   selectedProductoId: "",
   inventoryFilter: "todos",
+  cashClosingDate: localStorage.getItem("sicomoro_cash_closing_date") || today(),
   cache: {
     clientes: [],
     proveedores: [],
@@ -53,6 +54,7 @@ const state = {
     auditoria: [],
     usuarios: [],
     catalogoAnuncios: [],
+    productoHistorial: {},
     perfil: null
   }
 };
@@ -404,7 +406,7 @@ function formData(form) {
   new FormData(form).forEach((value, key) => {
     if (value === "") data[key] = null;
     else if (key.endsWith("Id") || key === "id") data[key] = value;
-    else if (["cantidad", "precioCompra", "precioVentaSugerido", "stockMinimo", "largo", "ancho", "espesor", "costoTransporte", "otrosCostos", "precioUnitario", "descuento", "monto", "nuevoStock"].includes(key)) data[key] = Number(value);
+    else if (["cantidad", "precioCompra", "precioVentaSugerido", "stockMinimo", "largo", "ancho", "espesor", "costoTransporte", "otrosCostos", "precioUnitario", "descuento", "monto", "nuevoStock", "saldoApertura", "efectivoContado"].includes(key)) data[key] = Number(value);
     else if (["unidadMedida", "estado", "metodoPago", "tipo", "rol"].includes(key)) data[key] = Number(value);
     else data[key] = value;
   });
@@ -1194,6 +1196,27 @@ function movimientosMiniTable(movimientos, limit = 6) {
   ], rows);
 }
 
+async function loadProductoHistorial(productoId) {
+  if (!productoId) return [];
+  const rows = await api(`/api/productos/${productoId}/historial`);
+  state.cache.productoHistorial[productoId] = rows;
+  return rows;
+}
+
+function renderProductHistoryTable(rows) {
+  if (!rows?.length) return `<div class="empty">Sin historial completo para este producto.</div>`;
+  return table([
+    { label: "Fecha", render: x => date(x.fecha) },
+    { label: "Tipo", render: x => esc(x.tipo) },
+    { label: "Referencia", render: x => esc(x.referencia) },
+    { label: "Cantidad PT", render: x => `<strong>${money(x.cantidad)}</strong>` },
+    { label: "Precio", render: x => currency(x.precioUnitario) },
+    { label: "Total", render: x => currency(x.total) },
+    { label: "Contraparte", render: x => esc(x.contraparte || "-") },
+    { label: "Observaciones", render: x => esc(x.observaciones || "-") }
+  ], rows);
+}
+
 function renderClientes() {
   const clientes = filterRows("clientes", state.cache.clientes, ["nombreRazonSocial", "ciNit", "telefono", "ciudad"]);
   const page = paginate("clientes", clientes);
@@ -1357,6 +1380,8 @@ function renderProductos() {
   ]).sort((a, b) => Number(b.bajoStock) - Number(a.bajoStock) || a.nombreComercial.localeCompare(b.nombreComercial));
   const page = paginate("productos", productos);
   const selected = productosBase.find(x => x.id === state.selectedProductoId) || productosBase[0] || null;
+  const historialCargado = selected ? Object.prototype.hasOwnProperty.call(state.cache.productoHistorial, selected.id) : false;
+  const historialProducto = selected ? (state.cache.productoHistorial[selected.id] || []) : [];
   const resumen = inventorySummary(productosBase.filter(x => x.estado === 1));
   renderShell(`
     <section class="kpi-grid compact">
@@ -1437,8 +1462,16 @@ function renderProductos() {
         `)}
         ${pager("productos", page)}
         <div class="panel-body product-movement-panel">
-          <h3>Ultimos movimientos${selected ? ` · ${esc(selected.nombreComercial)}` : ""}</h3>
-          ${selected ? movimientosMiniTable(selected.movimientos) : `<div class="empty">Selecciona un producto para ver su historial.</div>`}
+          <div class="product-history-head">
+            <h3>Historial ${selected ? `· ${esc(selected.nombreComercial)}` : ""}</h3>
+            ${selected ? `<button type="button" data-load-product-history="${selected.id}">Cargar historial completo</button>` : ""}
+          </div>
+          ${selected ? `
+            <h4>Ultimos movimientos de inventario</h4>
+            ${movimientosMiniTable(selected.movimientos)}
+            <h4>Trazabilidad de compras, ventas y ajustes</h4>
+            ${historialCargado ? renderProductHistoryTable(historialProducto) : `<div class="empty">Carga el historial completo para ver entradas, salidas, precio, subtotal y contraparte.</div>`}
+          ` : `<div class="empty">Selecciona un producto para ver su historial.</div>`}
         </div>
       </div>
     </section>
@@ -1489,6 +1522,13 @@ function renderProductos() {
     state.selectedProductoId = btn.dataset.editProducto;
     fillForm(form, producto);
     toast("Producto cargado para editar");
+  });
+  document.querySelectorAll("[data-load-product-history]").forEach(btn => btn.onclick = async () => {
+    await safe(async () => {
+      state.selectedProductoId = btn.dataset.loadProductHistory;
+      await loadProductoHistorial(btn.dataset.loadProductHistory);
+      renderProductos();
+    }, "Historial cargado");
   });
   document.querySelectorAll("[data-delete-producto]").forEach(btn => btn.onclick = async () => {
     const producto = findProducto(btn.dataset.deleteProducto);
@@ -1648,9 +1688,16 @@ function renderInventario() {
       render();
     }, "Inventario actualizado");
   };
-  document.querySelectorAll("[data-inv-select], [data-inv-history]").forEach(btn => btn.onclick = () => {
-    state.selectedProductoId = btn.dataset.invSelect || btn.dataset.invHistory;
+  document.querySelectorAll("[data-inv-select]").forEach(btn => btn.onclick = () => {
+    state.selectedProductoId = btn.dataset.invSelect;
     renderInventario();
+  });
+  document.querySelectorAll("[data-inv-history]").forEach(btn => btn.onclick = async () => {
+    await safe(async () => {
+      state.selectedProductoId = btn.dataset.invHistory;
+      await loadProductoHistorial(btn.dataset.invHistory);
+      setView("productos");
+    }, "Historial cargado");
   });
 }
 
@@ -1980,7 +2027,7 @@ function renderCaja() {
   const desde = monthStart();
   const hasta = today();
   renderShell(`
-    <section class="layout">
+    <section class="layout cash-layout">
       <div class="panel">
         <div class="panel-header"><h3>Movimiento</h3></div>
         <div class="panel-body">
@@ -1993,14 +2040,55 @@ function renderCaja() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-header"><h3>Caja</h3><button id="loadCaja">Cargar mes</button></div>
+        <div class="panel-header"><h3>Arqueo diario</h3></div>
+        <div class="panel-body">
+          <form id="cajaCierreForm" class="grid">
+            <label>Fecha<input name="fecha" type="date" value="${esc(state.cashClosingDate)}" required></label>
+            <label>Saldo apertura<input name="saldoApertura" type="number" step="0.0001" value="0"></label>
+            <label>Efectivo contado<input name="efectivoContado" type="number" step="0.0001" required></label>
+            <label class="full">Observaciones<input name="observaciones" placeholder="Diferencias, retiros, billetes pendientes..."></label>
+            <div class="actions full">
+              <button type="button" id="calcularCierre">Calcular</button>
+              <button class="primary">Guardar cierre</button>
+            </div>
+          </form>
+          <div id="cajaCierreResult" class="cash-close-result"></div>
+        </div>
+      </div>
+      <div class="panel full-panel">
+        <div class="panel-header"><h3>Caja del mes</h3><button id="loadCaja">Cargar mes</button></div>
         <div id="cajaResult" class="panel-body"></div>
       </div>
     </section>
   `, "Caja");
-  document.getElementById("cajaForm").onsubmit = submitJson("/api/caja/movimientos", () => loadCaja(desde, hasta));
+  document.getElementById("cajaForm").onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      await api("/api/caja/movimientos", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
+      event.currentTarget.reset();
+      await loadCaja(desde, hasta);
+      await loadCajaCierre();
+    }, "Movimiento registrado");
+  };
   document.getElementById("loadCaja").onclick = () => loadCaja(desde, hasta);
+  const cierreForm = document.getElementById("cajaCierreForm");
+  cierreForm.elements.fecha.onchange = event => {
+    state.cashClosingDate = event.currentTarget.value || today();
+    localStorage.setItem("sicomoro_cash_closing_date", state.cashClosingDate);
+    loadCajaCierre({ hydrate: true });
+  };
+  cierreForm.elements.saldoApertura.oninput = () => loadCajaCierre();
+  cierreForm.elements.efectivoContado.oninput = renderCajaCierrePreviewFromForm;
+  document.getElementById("calcularCierre").onclick = () => loadCajaCierre();
+  cierreForm.onsubmit = async event => {
+    event.preventDefault();
+    await safe(async () => {
+      const cierre = await api("/api/caja/cierre", { method: "POST", body: JSON.stringify(formData(event.currentTarget)) });
+      renderCajaCierreResult(cierre);
+    }, "Cierre guardado");
+  };
   loadCaja(desde, hasta);
+  loadCajaCierre({ hydrate: true });
 }
 
 async function loadCaja(desde, hasta) {
@@ -2021,6 +2109,62 @@ async function loadCaja(desde, hasta) {
     { label: "Monto", render: x => currency(x.monto) },
     { label: "Concepto", key: "concepto" }
   ], rows || [])}
+  `;
+}
+
+async function loadCajaCierre(options = {}) {
+  const form = document.getElementById("cajaCierreForm");
+  if (!form) return;
+  const data = formData(form);
+  if (!data.fecha) return;
+  const saldoApertura = Number(data.saldoApertura || 0);
+  const cierre = await safe(
+    () => api(`/api/caja/cierre?fecha=${encodeURIComponent(data.fecha)}&saldoApertura=${encodeURIComponent(saldoApertura)}`),
+    ""
+  );
+  if (!cierre) return;
+  form._cajaCierre = cierre;
+  const isSaved = cierre.id && cierre.id !== "00000000-0000-0000-0000-000000000000";
+  if (options.hydrate && isSaved) {
+    form.elements.saldoApertura.value = Number(cierre.saldoApertura || 0);
+    form.elements.efectivoContado.value = Number(cierre.efectivoContado || 0);
+    form.elements.observaciones.value = cierre.observaciones || "";
+  } else if (!form.elements.efectivoContado.value) {
+    form.elements.efectivoContado.value = Number(cierre.saldoEsperado || 0);
+  }
+  const efectivoContado = Number(form.elements.efectivoContado.value || 0);
+  renderCajaCierreResult({
+    ...cierre,
+    efectivoContado,
+    diferencia: efectivoContado - Number(cierre.saldoEsperado || 0)
+  });
+}
+
+function renderCajaCierrePreviewFromForm() {
+  const form = document.getElementById("cajaCierreForm");
+  const cierre = form?._cajaCierre;
+  if (!form || !cierre) return;
+  const efectivoContado = Number(form.elements.efectivoContado.value || 0);
+  renderCajaCierreResult({
+    ...cierre,
+    efectivoContado,
+    diferencia: efectivoContado - Number(cierre.saldoEsperado || 0)
+  });
+}
+
+function renderCajaCierreResult(cierre) {
+  const target = document.getElementById("cajaCierreResult");
+  if (!target) return;
+  const diff = Number(cierre.diferencia || 0);
+  const isBalanced = Math.abs(diff) < 0.0001;
+  target.innerHTML = `
+    <div class="detail-grid cash-close-grid">
+      <div><span>Ingresos del dia</span><strong>${currency(cierre.ingresos)}</strong></div>
+      <div><span>Egresos del dia</span><strong>${currency(cierre.egresos)}</strong></div>
+      <div><span>Saldo esperado</span><strong>${currency(cierre.saldoEsperado)}</strong></div>
+      <div><span>Diferencia</span><strong>${currency(diff)}</strong>${badge(isBalanced ? "Cuadrado" : "Revisar", isBalanced ? "good" : "warn")}</div>
+    </div>
+    <p class="hint">Saldo esperado = apertura + ingresos - egresos. Si la diferencia no es cero, deja una observacion antes de guardar.</p>
   `;
 }
 
@@ -2137,6 +2281,7 @@ function renderReportes() {
             <label>Hasta<input name="hasta" type="date" value="${today()}"></label>
             <div class="actions full">
               <button class="primary" type="button" id="reporteCompleto">Resumen completo</button>
+              <button type="button" id="reporteAvanzado">Analisis avanzado</button>
               <button>Ventas</button>
               <button type="button" id="reporteCaja">Caja</button>
               <button type="button" id="reporteBajo">Inventario bajo</button>
@@ -2204,6 +2349,34 @@ function renderReportes() {
         </div>
       `);
     }, "Reporte completo generado");
+  };
+  document.getElementById("reporteAvanzado").onclick = async () => {
+    const data = formData(form);
+    await safe(async () => {
+      const r = await api(`/api/reportes/negocio?desde=${data.desde}&hasta=${data.hasta}`);
+      const rows = [
+        { seccion: "Resumen", nombre: "Ventas confirmadas", total: r.ventasConfirmadas, cantidad: "" },
+        { seccion: "Resumen", nombre: "Compras recibidas", total: r.comprasRecibidas, cantidad: "" },
+        { seccion: "Resumen", nombre: "Utilidad bruta estimada", total: r.utilidadBruta, cantidad: "" },
+        { seccion: "Resumen", nombre: "Margen promedio %", total: r.margenPromedio, cantidad: "" },
+        { seccion: "Inventario", nombre: "Valor a costo", total: r.inventarioValorCosto, cantidad: "" },
+        { seccion: "Inventario", nombre: "Valor a venta", total: r.inventarioValorVenta, cantidad: "" },
+        ...r.topClientes.map(x => ({ seccion: "Top clientes", nombre: x.nombre, total: x.total, cantidad: x.cantidad })),
+        ...r.topProductos.map(x => ({ seccion: "Top productos", nombre: x.nombre, total: x.total, cantidad: x.cantidad })),
+        ...r.ventasVsCompras.map(x => ({ seccion: "Ventas vs compras", nombre: x.periodo, total: x.ventas, cantidad: x.compras }))
+      ];
+      ultimoReporte = {
+        filename: `analisis-avanzado-${data.desde}-${data.hasta}.csv`,
+        rows,
+        columns: [
+          { label: "Seccion", key: "seccion" },
+          { label: "Nombre", key: "nombre" },
+          { label: "Total", key: "total" },
+          { label: "Cantidad/Compras", key: "cantidad" }
+        ]
+      };
+      reportHtml(renderAdvancedReport(r));
+    }, "Analisis avanzado generado");
   };
   form.onsubmit = async event => {
     event.preventDefault();
@@ -2312,6 +2485,54 @@ function renderReportHome() {
             { label: "Minimo", render: x => money(x.stockMinimo) }
           ], bajo)}
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdvancedReport(r) {
+  return `
+    <div class="report-block advanced-report">
+      <div>
+        <h3>Analisis avanzado del negocio</h3>
+        <p class="hint">La utilidad usa el precio de compra actual como costo estimado. Para cierres contables exactos conviene mantener costos actualizados por compra.</p>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><span>Ventas confirmadas</span><strong>${currency(r.ventasConfirmadas)}</strong></div>
+        <div class="kpi"><span>Compras recibidas</span><strong>${currency(r.comprasRecibidas)}</strong></div>
+        <div class="kpi"><span>Utilidad bruta estimada</span><strong>${currency(r.utilidadBruta)}</strong></div>
+        <div class="kpi"><span>Margen promedio</span><strong>${money(r.margenPromedio)}%</strong></div>
+        <div class="kpi"><span>Stock valorizado a costo</span><strong>${currency(r.inventarioValorCosto)}</strong></div>
+        <div class="kpi"><span>Stock valorizado a venta</span><strong>${currency(r.inventarioValorVenta)}</strong></div>
+        <div class="kpi"><span>Margen potencial stock</span><strong>${currency(Number(r.inventarioValorVenta || 0) - Number(r.inventarioValorCosto || 0))}</strong></div>
+        <div class="kpi"><span>Periodos comparados</span><strong>${r.ventasVsCompras.length}</strong></div>
+      </div>
+      <div class="layout report-detail-layout">
+        <div class="panel">
+          <div class="panel-header"><h3>Clientes que mas compran</h3></div>
+          ${table([
+            { label: "Cliente", key: "nombre" },
+            { label: "Total", render: x => currency(x.total) },
+            { label: "Ventas", render: x => money(x.cantidad) }
+          ], r.topClientes)}
+        </div>
+        <div class="panel">
+          <div class="panel-header"><h3>Productos mas vendidos</h3></div>
+          ${table([
+            { label: "Producto", key: "nombre" },
+            { label: "Total", render: x => currency(x.total) },
+            { label: "PT", render: x => money(x.cantidad) }
+          ], r.topProductos)}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><h3>Compras vs ventas</h3></div>
+        ${table([
+          { label: "Periodo", key: "periodo" },
+          { label: "Ventas", render: x => currency(x.ventas) },
+          { label: "Compras", render: x => currency(x.compras) },
+          { label: "Resultado", render: x => currency(Number(x.ventas || 0) - Number(x.compras || 0)) }
+        ], r.ventasVsCompras)}
       </div>
     </div>
   `;

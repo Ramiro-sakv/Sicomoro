@@ -42,6 +42,7 @@ public sealed record ConfirmarVentaCommand(Guid VentaId, decimal MontoPagado) : 
 public sealed record AnularVentaCommand(Guid VentaId, string Motivo) : IRequest<bool>;
 public sealed record RegistrarPagoCommand(Guid CobroId, decimal Monto, MetodoPago MetodoPago, string? Referencia) : IRequest<CobroDto>;
 public sealed record RegistrarCajaMovimientoCommand(TipoCajaMovimiento Tipo, decimal Monto, string Concepto, Guid? CompraId = null) : IRequest<CajaMovimientoDto>;
+public sealed record RegistrarCajaCierreCommand(DateTime Fecha, decimal SaldoApertura, decimal EfectivoContado, string? Observaciones) : IRequest<CajaCierreDto>;
 public sealed record GenerarDocumentoVentaCommand(Guid VentaId, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<DocumentoDto>;
 public sealed record EnviarDocumentoVentaCommand(Guid VentaId, string Destino, TipoDocumentoVenta Tipo = TipoDocumentoVenta.ComprobanteVenta) : IRequest<bool>;
 public sealed record CrearAnuncioCatalogoCommand(Guid? ProductoId, string Titulo, string? Subtitulo, string Descripcion, string? ImagenUrl, string? PrecioTexto, string? Etiqueta, string? CtaTexto, string? CtaUrl, int Orden, bool Publicado) : IRequest<AnuncioCatalogoDto>;
@@ -596,7 +597,9 @@ public sealed class CobroHandler(IUnitOfWork uow, ICurrentUserService currentUse
     }
 }
 
-public sealed class CajaHandler(IUnitOfWork uow, ICurrentUserService currentUser) : IRequestHandler<RegistrarCajaMovimientoCommand, CajaMovimientoDto>
+public sealed class CajaHandler(IUnitOfWork uow, ICurrentUserService currentUser) :
+    IRequestHandler<RegistrarCajaMovimientoCommand, CajaMovimientoDto>,
+    IRequestHandler<RegistrarCajaCierreCommand, CajaCierreDto>
 {
     public async Task<CajaMovimientoDto> Handle(RegistrarCajaMovimientoCommand r, CancellationToken ct)
     {
@@ -606,6 +609,51 @@ public sealed class CajaHandler(IUnitOfWork uow, ICurrentUserService currentUser
         await uow.Caja.AgregarAsync(movimiento, ct);
         await uow.SaveChangesAsync(ct);
         return movimiento.ToDto();
+    }
+
+    public async Task<CajaCierreDto> Handle(RegistrarCajaCierreCommand r, CancellationToken ct)
+    {
+        var usuarioId = currentUser.UserId ?? throw new UnauthorizedAccessException("Usuario no autenticado.");
+        var fecha = DateTime.SpecifyKind(r.Fecha.Date, DateTimeKind.Utc);
+        var (ingresos, egresos) = await CalcularMovimientosDiaAsync(fecha, ct);
+        var cierre = await uow.CajaCierres.ObtenerPorFechaAsync(fecha, ct);
+
+        if (cierre is null)
+        {
+            cierre = new CajaCierre(fecha, r.SaldoApertura, ingresos, egresos, r.EfectivoContado, r.Observaciones, usuarioId);
+            await uow.CajaCierres.AgregarAsync(cierre, ct);
+        }
+        else
+        {
+            cierre.Actualizar(r.SaldoApertura, ingresos, egresos, r.EfectivoContado, r.Observaciones, usuarioId);
+        }
+
+        await uow.SaveChangesAsync(ct);
+        return cierre.ToDto();
+    }
+
+    private async Task<(decimal Ingresos, decimal Egresos)> CalcularMovimientosDiaAsync(DateTime fecha, CancellationToken ct)
+    {
+        var (desde, hasta) = BoliviaDateRange(fecha, fecha);
+        var movimientos = await uow.Caja.ListarPorRangoAsync(desde, hasta, ct);
+        var ingresos = movimientos.Where(x => x.Tipo == TipoCajaMovimiento.Ingreso).Sum(x => x.Monto);
+        var egresos = movimientos.Where(x => x.Tipo == TipoCajaMovimiento.Egreso).Sum(x => x.Monto);
+        return (ingresos, egresos);
+    }
+
+    private static (DateTime Desde, DateTime Hasta) BoliviaDateRange(DateTime desde, DateTime hasta)
+    {
+        var tz = GetBoliviaTimeZone();
+        var start = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(desde.Date, DateTimeKind.Unspecified), tz);
+        var endLocal = hasta.Date.AddDays(1).AddTicks(-1);
+        var end = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(endLocal, DateTimeKind.Unspecified), tz);
+        return (start, end);
+    }
+
+    private static TimeZoneInfo GetBoliviaTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("America/La_Paz"); }
+        catch (TimeZoneNotFoundException) { return TimeZoneInfo.FindSystemTimeZoneById("SA Western Standard Time"); }
     }
 }
 
@@ -729,6 +777,7 @@ public static class MappingExtensions
     public static CobroDto ToDto(this Cobro x) => new(x.Id, x.VentaId, x.ClienteId, x.MontoTotal, x.SaldoPendiente, x.Estado, x.FechaVencimiento);
     public static DocumentoDto ToDto(this DocumentoVenta x) => new(x.Id, x.VentaId, x.Tipo, x.Numero, Path.GetFileName(x.RutaArchivo), x.FechaGeneracion);
     public static CajaMovimientoDto ToDto(this CajaMovimiento x) => new(x.Id, x.Fecha, x.Tipo, x.Monto, x.Concepto, x.UsuarioId, x.VentaId, x.PagoId, x.CompraId);
+    public static CajaCierreDto ToDto(this CajaCierre x) => new(x.Id, x.Fecha, x.SaldoApertura, x.Ingresos, x.Egresos, x.SaldoEsperado, x.EfectivoContado, x.Diferencia, x.Observaciones, x.UsuarioId);
     public static NotificacionDto ToDto(this Notificacion x) => new(x.Id, x.Tipo, x.Titulo, x.Mensaje, x.UsuarioId, x.Leida, x.CreadoEn);
     public static AuditoriaDto ToDto(this Auditoria x) => new(x.Id, x.UsuarioId, x.FechaHora, x.Accion, x.Entidad, x.EntidadId, x.DatosAntes, x.DatosDespues);
     public static UsuarioDto ToDto(this Usuario x) => new(x.Id, x.Nombre, x.Email, x.Rol, x.Estado, x.CiNit, x.Telefono, x.Direccion, x.Cargo, x.Notas);

@@ -17,6 +17,7 @@ public sealed class SistemaMantenimientoService(SicomoroDbContext db) : ISistema
         var pagos = await db.Pagos.ExecuteDeleteAsync(cancellationToken);
         var cobros = await db.Cobros.ExecuteDeleteAsync(cancellationToken);
         var caja = await db.CajaMovimientos.ExecuteDeleteAsync(cancellationToken);
+        var cajaCierres = await db.CajaCierres.ExecuteDeleteAsync(cancellationToken);
         var movimientos = await db.MovimientosInventario.ExecuteDeleteAsync(cancellationToken);
         var compraDetalles = await db.CompraDetalles.ExecuteDeleteAsync(cancellationToken);
         var ventaDetalles = await db.VentaDetalles.ExecuteDeleteAsync(cancellationToken);
@@ -31,11 +32,9 @@ public sealed class SistemaMantenimientoService(SicomoroDbContext db) : ISistema
         var notificaciones = await db.Notificaciones.ExecuteDeleteAsync(cancellationToken);
         var auditoria = await db.Auditoria.ExecuteDeleteAsync(cancellationToken);
 
-        var administradoresReales = await db.Users.CountAsync(x => x.Rol == RolSistema.Administrador && x.Email != "admin@sicomoro.local", cancellationToken);
-        var adminSemilla = administradoresReales > 0
-            ? await db.Users.Where(x => x.Email == "admin@sicomoro.local").ExecuteDeleteAsync(cancellationToken)
-            : 0;
-        var usuariosNoAdmin = await db.Users.Where(x => x.Rol != RolSistema.Administrador).ExecuteDeleteAsync(cancellationToken);
+        var usuariosEliminados = usuarioId is null
+            ? await db.Users.Where(x => x.Email == "admin@sicomoro.local" || x.Rol != RolSistema.Administrador).ExecuteDeleteAsync(cancellationToken)
+            : await db.Users.Where(x => x.Id != usuarioId.Value).ExecuteDeleteAsync(cancellationToken);
         var administradores = await db.Users.CountAsync(x => x.Rol == RolSistema.Administrador, cancellationToken);
 
         var resultado = new LimpiezaSistemaDto(
@@ -52,11 +51,12 @@ public sealed class SistemaMantenimientoService(SicomoroDbContext db) : ISistema
             cobros,
             pagos,
             caja,
+            cajaCierres,
             documentos,
             anuncios,
             notificaciones,
             auditoria,
-            usuariosNoAdmin + adminSemilla,
+            usuariosEliminados,
             administradores);
 
         db.Auditoria.Add(new Auditoria(usuarioId, "ReinicioDatosOperativos", "Sistema", null, null, JsonSerializer.Serialize(resultado)));

@@ -54,6 +54,7 @@ public sealed record LimpiezaSistemaDto(
     int Cobros,
     int Pagos,
     int CajaMovimientos,
+    int CajaCierres,
     int DocumentosVenta,
     int AnunciosCatalogo,
     int Notificaciones,
